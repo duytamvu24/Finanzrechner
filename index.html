@@ -555,8 +555,28 @@ function matchInternalTransfers() {
   });
 }
 
+const AUTO_LABEL_RULES = {
+  'Essen': ['rewe', 'lidl', 'edeka', 'aldi', 'kaufland', 'penny', 'netto marken', 'mcdonald', 'burger king', 'kfc', 'lieferando', 'restaurant', 'bäckerei', 'subway'],
+  'Abos': ['drillisch', 'telefonica', 'telekom', 'vodafone', 'fitx', 'mcfit', 'netflix', 'spotify', 'disney+', 'amazon prime', 'sky deutschland', ' o2 '],
+  'Transport': ['deutsche bahn', 'db vertrieb', 'tankstelle', 'shell', 'aral', ' esso', 'sixt', 'uber', 'taxi', 'bvg', 'vrr', 'mvv'],
+  'Versicherungen': ['versicherung', 'allianz', 'huk-coburg', 'ergo', 'axa'],
+  'Gesundheit': ['apotheke', 'dm-drogerie', 'rossmann', 'arztpraxis'],
+  'Bargeld': ['geldautomat', 'bargeldauszahlung'],
+  'Reisen': ['booking.com', 'airbnb', 'ryanair', 'lufthansa', 'hotel'],
+  'Wohnung': ['miete', 'hausverwaltung', 'stadtwerke'],
+  'Sparen': ['sparplan', 'tagesgeldkonto']
+};
+
+function autoSuggestLabel(t) {
+  const haystack = ((t.empfaenger || '') + ' ' + (t.verwendungszweck || '')).toLowerCase();
+  for (const label of Object.keys(AUTO_LABEL_RULES)) {
+    if (AUTO_LABEL_RULES[label].some(kw => haystack.includes(kw))) return label;
+  }
+  return null;
+}
+
 function effectiveLabel(t) {
-  return labelMap[txKey(t)] || 'Unkategorisiert';
+  return labelMap[txKey(t)] || autoSuggestLabel(t) || 'Unkategorisiert';
 }
 
 
@@ -659,10 +679,15 @@ function renderCombinedOverview() {
   tbody.innerHTML = '';
   list.forEach(t => {
     const key = txKey(t);
-    const current = labelMap[key] || 'Unkategorisiert';
+    const manualLabel = labelMap[key];
+    const suggested = autoSuggestLabel(t);
+    const current = manualLabel || suggested || 'Unkategorisiert';
+    const isAuto = !manualLabel && !!suggested;
     const labelCell = t.internal
       ? '🔁 Interner Transfer'
-      : '<select data-key="' + encodeURIComponent(key) + '">' + LABELS.map(l => '<option value="' + l + '"' + (l === current ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>';
+      : '<select data-key="' + encodeURIComponent(key) + '"' +
+        (isAuto ? ' style="border-style:dashed;" title="Automatisch vorgeschlagen – zum Bestätigen einfach auswählen"' : '') +
+        '>' + LABELS.map(l => '<option value="' + l + '"' + (l === current ? ' selected' : '') + '>' + l + (isAuto && l === current ? ' (Vorschlag)' : '') + '</option>').join('') + '</select>';
     const cellFor = {
       datum: t.datum.toLocaleDateString('de-DE'),
       quelle: t.quelle,
