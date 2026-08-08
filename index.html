@@ -260,6 +260,12 @@
         Nur Buchungen mit vergebenem Label anzeigen
       </label>
     </div>
+    <div class="filter-row">
+      <label style="display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="onlySuggestedToggle">
+        Nur unbestätigte Vorschläge anzeigen
+      </label>
+    </div>
     <div class="filter-row" style="flex-wrap:wrap;">
       <span>Label-Filter (klicken zum Ein-/Ausblenden, auch per Klick im Kuchendiagramm):</span>
     </div>
@@ -670,6 +676,7 @@ let combinedVisibleCols = { datum: true, quelle: false, vonan: true, zweck: true
 
 let hideInternal = false;
 let onlyLabeled = false;
+let onlySuggested = false;
 let selectedLabels = new Set();
 
 function buildLabelFilterUI() {
@@ -691,6 +698,9 @@ function renderCombinedOverview() {
   let list = hideInternal ? transactions.filter(t => !t.internal) : transactions.slice();
   if (onlyLabeled) {
     list = list.filter(t => (labelMap[txKey(t)] || 'Unkategorisiert') !== 'Unkategorisiert');
+  }
+  if (onlySuggested) {
+    list = list.filter(t => !t.internal && !labelMap[txKey(t)] && !!autoSuggestLabel(t));
   }
   if (selectedLabels.size > 0) {
     list = list.filter(t => selectedLabels.has(labelMap[txKey(t)] || 'Unkategorisiert'));
@@ -718,11 +728,15 @@ function renderCombinedOverview() {
     const isAuto = !manualLabel && !!suggested;
     const normEmp = normalizeEmpfaenger(t.empfaenger);
     const empfAttr = (normEmp && normEmp !== '-' && normEmp !== '–') ? ' data-empf="' + encodeURIComponent(normEmp) + '"' : '';
+    const selectHtml = '<select data-key="' + encodeURIComponent(key) + '"' + empfAttr +
+        (isAuto ? ' style="border-style:dashed;" title="Automatisch vorgeschlagen – zum Bestätigen einfach auswählen oder Haken klicken"' : '') +
+        '>' + LABELS.map(l => '<option value="' + l + '"' + (l === current ? ' selected' : '') + '>' + l + (isAuto && l === current ? ' (Vorschlag)' : '') + '</option>').join('') + '</select>';
+    const confirmBtn = isAuto
+      ? '<button class="confirmLabelBtn" data-key="' + encodeURIComponent(key) + '" data-value="' + encodeURIComponent(current) + '"' + empfAttr + ' title="Vorschlag bestätigen" style="margin-left:6px;padding:2px 8px;border-radius:4px;border:1px solid var(--ledger-green);background:rgba(41,70,59,0.08);color:var(--ledger-green-dark);cursor:pointer;">✓</button>'
+      : '';
     const labelCell = t.internal
       ? '🔁 Interner Transfer'
-      : '<select data-key="' + encodeURIComponent(key) + '"' + empfAttr +
-        (isAuto ? ' style="border-style:dashed;" title="Automatisch vorgeschlagen – zum Bestätigen einfach auswählen"' : '') +
-        '>' + LABELS.map(l => '<option value="' + l + '"' + (l === current ? ' selected' : '') + '>' + l + (isAuto && l === current ? ' (Vorschlag)' : '') + '</option>').join('') + '</select>';
+      : selectHtml + confirmBtn;
     const cellFor = {
       datum: t.datum.toLocaleDateString('de-DE'),
       quelle: t.quelle,
@@ -758,6 +772,22 @@ function renderCombinedOverview() {
       renderPieChart(currentActiveTransactions());
     });
   });
+
+  tbody.querySelectorAll('.confirmLabelBtn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const key = decodeURIComponent(e.target.getAttribute('data-key'));
+      const value = decodeURIComponent(e.target.getAttribute('data-value'));
+      labelMap[key] = value;
+      const empfAttr = e.target.getAttribute('data-empf');
+      if (empfAttr) learnedRules[decodeURIComponent(empfAttr)] = value;
+
+      labelsDirty = true;
+      document.getElementById('saveLabelsBtn').disabled = !rootDirHandle;
+      document.getElementById('saveStatus').textContent = rootDirHandle ? 'Ungespeicherte Änderungen' : 'Zum Speichern: über "Ordner auswählen" laden';
+      renderCombinedOverview();
+      renderPieChart(currentActiveTransactions());
+    });
+  });
 }
 
 document.getElementById('hideInternalToggle').addEventListener('change', (e) => {
@@ -767,6 +797,11 @@ document.getElementById('hideInternalToggle').addEventListener('change', (e) => 
 
 document.getElementById('onlyLabeledToggle').addEventListener('change', (e) => {
   onlyLabeled = e.target.checked;
+  renderCombinedOverview();
+});
+
+document.getElementById('onlySuggestedToggle').addEventListener('change', (e) => {
+  onlySuggested = e.target.checked;
   renderCombinedOverview();
 });
 
