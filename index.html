@@ -243,7 +243,7 @@
     <div id="txContent" style="display:none;">
       <div class="tx-table-wrap">
         <table class="tx-table">
-          <thead><tr><th>Datum</th><th>Von / An</th><th class="zweck">Verwendungszweck</th><th>Betrag</th><th>Label</th></tr></thead>
+          <thead><tr><th>Datum</th><th>Von / An</th><th class="zweck">Verwendungszweck</th><th class="zweck">Kommentar</th><th>Betrag</th><th>Label</th></tr></thead>
           <tbody id="txTableBody"></tbody>
         </table>
       </div>
@@ -267,11 +267,12 @@
     <div class="filter-row" style="flex-wrap:wrap;">
       <span>Spalten:</span>
       <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="datum" checked>Datum</label>
-      <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="quelle" checked>Quelle</label>
+      <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="quelle">Quelle</label>
       <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="vonan" checked>Von/An</label>
       <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="zweck" checked>Verwendungszweck</label>
+      <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="kommentar" checked>Kommentar</label>
       <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="betrag" checked>Betrag</label>
-      <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="label" checked>Label</label>
+      <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="label">Label</label>
     </div>
     <div id="combinedEmpty" class="empty-msg">Noch keine Daten.</div>
     <div class="tx-table-wrap" id="combinedWrap" style="display:none;">
@@ -346,17 +347,24 @@ function parseCsvFile(file, person) {
       complete: (results) => {
         const fields = results.meta.fields || [];
         const isPaypal = fields.includes('Transaktionscode') || fields.includes('Guthaben');
+        const isSparkasse = fields.includes('Auftragskonto') || fields.includes('Buchungstag');
+        if (!isPaypal && !isSparkasse) {
+          resolve({ rows: [], unrecognized: true });
+          return;
+        }
         const rows = [];
         results.data.forEach(row => {
-          let datum, betrag, verwendungszweck, empfaenger, kategorie;
+          let datum, betrag, verwendungszweck, empfaenger, kategorie, kommentar;
           if (isPaypal) {
             datum = parseGermanDate(row['Datum']);
             if (!datum) return;
             const nettoStr = row['Netto'];
             betrag = (nettoStr !== undefined && nettoStr !== '') ? parseGermanAmount(nettoStr) : parseGermanAmount(row['Brutto']);
-            verwendungszweck = (row['Beschreibung'] || '').trim();
+            verwendungszweck = (row['Beschreibung'] !== undefined ? row['Beschreibung'] : row['Typ']) || '';
+            verwendungszweck = verwendungszweck.trim();
             empfaenger = (row['Name'] || '').trim();
             kategorie = '';
+            kommentar = (row['Hinweis'] || row['Betreff'] || '').trim();
           } else {
             datum = parseGermanDate(row['Buchungstag']);
             if (!datum) return;
@@ -364,6 +372,7 @@ function parseCsvFile(file, person) {
             verwendungszweck = (row['Verwendungszweck'] || '').trim();
             empfaenger = (row['Beguenstigter/Zahlungspflichtiger'] || '').trim();
             kategorie = (row['Kategorie'] || '').trim();
+            kommentar = '';
           }
           rows.push({
             datum: datum,
@@ -371,12 +380,13 @@ function parseCsvFile(file, person) {
             betrag: betrag,
             buchungstext: '',
             verwendungszweck: verwendungszweck,
+            kommentar: kommentar,
             empfaenger: empfaenger,
             kategorie: kategorie || 'Unkategorisiert',
             person: person
           });
         });
-        resolve(rows);
+        resolve({ rows: rows, unrecognized: false });
       }
     });
   });
@@ -391,10 +401,10 @@ function addFileToList(name) {
 async function handleFiles(fileArray) {
   for (const file of fileArray) {
     const label = file.name.replace(/\.csv$/i, '');
-    const rows = await parseCsvFile(file, label);
-    transactions.push(...rows);
+    const result = await parseCsvFile(file, label);
+    transactions.push(...result.rows);
     knownPersons.add(label);
-    addFileToList(file.name);
+    addFileToList(file.name + (result.unrecognized ? ' – Format nicht erkannt, übersprungen' : ''));
   }
   matchInternalTransfers();
   render();
@@ -455,10 +465,10 @@ async function scanDirectory(dirHandle, personLabel) {
   for await (const [name, handle] of dirHandle.entries()) {
     if (handle.kind === 'file' && name.toLowerCase().endsWith('.csv')) {
       const file = await handle.getFile();
-      const rows = await parseCsvFile(file, personLabel);
-      transactions.push(...rows);
+      const result = await parseCsvFile(file, personLabel);
+      transactions.push(...result.rows);
       knownPersons.add(personLabel);
-      addFileToList((personLabel !== 'Gemeinsam' ? personLabel + ' / ' : '') + name);
+      addFileToList((personLabel !== 'Gemeinsam' ? personLabel + ' / ' : '') + name + (result.unrecognized ? ' – Format nicht erkannt, übersprungen' : ''));
     } else if (handle.kind === 'directory') {
       await scanDirectory(handle, name);
     }
@@ -557,6 +567,7 @@ function renderTransactionsTable(list) {
         '<td>' + t.datum.toLocaleDateString('de-DE') + '</td>' +
         '<td>' + (t.empfaenger || '–') + '</td>' +
         '<td class="zweck">' + (t.verwendungszweck || '–') + '</td>' +
+        '<td class="zweck">' + (t.kommentar || '–') + '</td>' +
         '<td>' + formatEUR(t.betrag) + '</td>' +
         '<td>🔁 Interner Transfer</td>';
       tbody.appendChild(tr);
@@ -567,6 +578,7 @@ function renderTransactionsTable(list) {
       '<td>' + t.datum.toLocaleDateString('de-DE') + '</td>' +
       '<td>' + (t.empfaenger || '–') + '</td>' +
       '<td class="zweck">' + (t.verwendungszweck || '–') + '</td>' +
+      '<td class="zweck">' + (t.kommentar || '–') + '</td>' +
       '<td>' + formatEUR(t.betrag) + '</td>' +
       '<td><select data-key="' + encodeURIComponent(key) + '">' + options + '</select></td>';
     tbody.appendChild(tr);
@@ -626,10 +638,11 @@ const COMBINED_COLS = [
   { key: 'quelle', label: 'Quelle' },
   { key: 'vonan', label: 'Von / An' },
   { key: 'zweck', label: 'Verwendungszweck' },
+  { key: 'kommentar', label: 'Kommentar' },
   { key: 'betrag', label: 'Betrag' },
   { key: 'label', label: 'Label' }
 ];
-let combinedVisibleCols = { datum: true, quelle: true, vonan: true, zweck: true, betrag: true, label: true };
+let combinedVisibleCols = { datum: true, quelle: false, vonan: true, zweck: true, kommentar: true, betrag: true, label: false };
 
 function renderCombinedOverview() {
   const list = transactions.filter(t => !t.internal).slice().sort((a, b) => b.datum - a.datum);
@@ -650,6 +663,7 @@ function renderCombinedOverview() {
       quelle: t.person,
       vonan: t.empfaenger || '–',
       zweck: t.verwendungszweck || '–',
+      kommentar: t.kommentar || '–',
       betrag: formatEUR(t.betrag),
       label: label
     };
