@@ -135,6 +135,24 @@
     font-size:0.9rem;
   }
   .filter-row{display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem;font-size:0.85rem;color:#6b6152;}
+  .tx-table-wrap{max-height:480px;overflow-y:auto;}
+  .tx-table{font-size:0.82rem;}
+  .tx-table td, .tx-table th{white-space:nowrap;}
+  .tx-table td.zweck{white-space:normal;max-width:260px;}
+  .save-row{display:flex;align-items:center;gap:1rem;margin-top:1rem;}
+  .save-btn{
+    font-family:'IBM Plex Sans',sans-serif;
+    background:var(--gold);
+    color:#F7F3E8;
+    border:none;
+    padding:0.6rem 1.1rem;
+    border-radius:6px;
+    font-size:0.88rem;
+    cursor:pointer;
+  }
+  .save-btn:disabled{opacity:0.4;cursor:not-allowed;}
+  .save-status{font-size:0.82rem;color:#6b6152;}
+  .pie-wrap{position:relative;height:320px;max-width:420px;margin:0 auto;}
 </style>
 </head>
 <body>
@@ -212,6 +230,31 @@
   </div>
 
   <div class="card">
+    <h2>Ausgaben nach Label</h2>
+    <div id="pieEmpty" class="empty-msg">Noch keine Daten.</div>
+    <div class="pie-wrap" id="pieWrap" style="display:none;">
+      <canvas id="pieChart" role="img" aria-label="Kreisdiagramm der Ausgaben nach Label"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Alle Buchungen</h2>
+    <div id="txEmpty" class="empty-msg">Noch keine Daten.</div>
+    <div id="txContent" style="display:none;">
+      <div class="tx-table-wrap">
+        <table class="tx-table">
+          <thead><tr><th>Datum</th><th>Von / An</th><th class="zweck">Verwendungszweck</th><th>Betrag</th><th>Label</th></tr></thead>
+          <tbody id="txTableBody"></tbody>
+        </table>
+      </div>
+      <div class="save-row">
+        <button class="save-btn" id="saveLabelsBtn" disabled>Labels speichern</button>
+        <span class="save-status" id="saveStatus"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>Monatsübersicht</h2>
     <div id="tableEmpty" class="empty-msg">Noch keine Daten.</div>
     <table id="monthTable" style="display:none;">
@@ -228,7 +271,21 @@
 let transactions = [];
 let timelineChart = null;
 let monthlyChart = null;
+let pieChart = null;
 let knownPersons = new Set();
+let rootDirHandle = null;
+let labelMap = {};
+let labelsDirty = false;
+
+const LABELS = [
+  'Wohnung', 'Essen', 'Abos', 'Freizeit', 'Mitgliedschaften',
+  'Transport', 'Versicherungen', 'Gesundheit', 'Shopping',
+  'Gehalt/Einkommen', 'Sparen', 'Bargeld', 'Reisen', 'Geschenke', 'Sonstiges'
+];
+
+function txKey(t) {
+  return t.datum.getTime() + '|' + t.betrag.toFixed(2) + '|' + t.verwendungszweck + '|' + t.empfaenger;
+}
 
 function parseGermanAmount(str) {
   if (!str) return 0;
@@ -305,6 +362,57 @@ async function handleFiles(fileArray) {
   render();
 }
 
+async function loadLabelsFromDir(dirHandle) {
+  try {
+    const handle = await dirHandle.getFileHandle('labels.csv');
+    const file = await handle.getFile();
+    const text = await file.text();
+    const parsed = Papa.parse(text, { header: true, delimiter: ';', skipEmptyLines: true });
+    parsed.data.forEach(row => {
+      const datum = parseGermanDate(row['Datum']);
+      if (!datum) return;
+      const fakeT = {
+        datum: datum,
+        betrag: parseGermanAmount(row['Betrag']),
+        verwendungszweck: (row['Verwendungszweck'] || '').trim(),
+        empfaenger: (row['VonAn'] || '').trim()
+      };
+      if (row['Label']) labelMap[txKey(fakeT)] = row['Label'].trim();
+    });
+  } catch (err) {
+    // keine labels.csv vorhanden - kein Problem, einfach leer starten
+  }
+}
+
+async function saveLabels() {
+  if (!rootDirHandle) return;
+  const lines = ['"Datum";"VonAn";"Verwendungszweck";"Betrag";"Label"'];
+  transactions.forEach(t => {
+    const key = txKey(t);
+    const label = labelMap[key];
+    if (!label) return;
+    const esc = (s) => '"' + String(s).replace(/"/g, '""') + '"';
+    lines.push([
+      esc(t.datum.toLocaleDateString('de-DE')),
+      esc(t.empfaenger),
+      esc(t.verwendungszweck),
+      esc(t.betrag.toFixed(2).replace('.', ',')),
+      esc(label)
+    ].join(';'));
+  });
+  try {
+    const handle = await rootDirHandle.getFileHandle('labels.csv', { create: true });
+    const writable = await handle.createWritable();
+    await writable.write(lines.join('\n'));
+    await writable.close();
+    labelsDirty = false;
+    document.getElementById('saveStatus').textContent = 'Gespeichert unter labels.csv';
+    document.getElementById('saveLabelsBtn').disabled = true;
+  } catch (err) {
+    document.getElementById('saveStatus').textContent = 'Speichern fehlgeschlagen: ' + err.message;
+  }
+}
+
 async function scanDirectory(dirHandle, personLabel) {
   for await (const [name, handle] of dirHandle.entries()) {
     if (handle.kind === 'file' && name.toLowerCase().endsWith('.csv')) {
@@ -351,6 +459,81 @@ function renderPersonBreakdown() {
   });
 }
 
+function effectiveLabel(t) {
+  return labelMap[txKey(t)] || t.kategorie || 'Unkategorisiert';
+}
+
+function renderTransactionsTable(list) {
+  document.getElementById('txEmpty').style.display = 'none';
+  document.getElementById('txContent').style.display = 'block';
+  const tbody = document.getElementById('txTableBody');
+  tbody.innerHTML = '';
+  const sorted = list.slice().sort((a, b) => b.datum - a.datum);
+  sorted.forEach(t => {
+    const key = txKey(t);
+    const current = labelMap[key] || '';
+    const tr = document.createElement('tr');
+    const options = ['<option value="">–</option>']
+      .concat(LABELS.map(l => '<option value="' + l + '"' + (l === current ? ' selected' : '') + '>' + l + '</option>'))
+      .join('');
+    tr.innerHTML =
+      '<td>' + t.datum.toLocaleDateString('de-DE') + '</td>' +
+      '<td>' + (t.empfaenger || '–') + '</td>' +
+      '<td class="zweck">' + (t.verwendungszweck || '–') + '</td>' +
+      '<td>' + formatEUR(t.betrag) + '</td>' +
+      '<td><select data-key="' + encodeURIComponent(key) + '">' + options + '</select></td>';
+    tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('select').forEach(sel => {
+    sel.addEventListener('change', (e) => {
+      const key = decodeURIComponent(e.target.getAttribute('data-key'));
+      if (e.target.value) labelMap[key] = e.target.value;
+      else delete labelMap[key];
+      labelsDirty = true;
+      document.getElementById('saveLabelsBtn').disabled = !rootDirHandle;
+      document.getElementById('saveStatus').textContent = rootDirHandle ? 'Ungespeicherte Änderungen' : 'Zum Speichern: über "Ordner auswählen" laden';
+      renderPieChart(currentActiveTransactions());
+    });
+  });
+}
+
+function renderPieChart(list) {
+  const expenseByLabel = {};
+  list.filter(t => t.betrag < 0).forEach(t => {
+    const l = effectiveLabel(t);
+    expenseByLabel[l] = (expenseByLabel[l] || 0) + Math.abs(t.betrag);
+  });
+  const labels = Object.keys(expenseByLabel);
+  if (labels.length === 0) {
+    document.getElementById('pieEmpty').style.display = 'block';
+    document.getElementById('pieWrap').style.display = 'none';
+    return;
+  }
+  document.getElementById('pieEmpty').style.display = 'none';
+  document.getElementById('pieWrap').style.display = 'block';
+  const cove = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948', '#8C6A3F', '#A13D2C', '#29463B', '#6b6152'];
+  if (pieChart) pieChart.destroy();
+  pieChart = new Chart(document.getElementById('pieChart'), {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: labels.map(l => Math.round(expenseByLabel[l] * 100) / 100),
+        backgroundColor: labels.map((_, i) => cove[i % cove.length])
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#6b6152', boxWidth: 11, font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+let currentActiveTransactions = () => [];
+
 function render() {
   if (transactions.length === 0) return;
 
@@ -361,6 +544,9 @@ function render() {
   const active = filterVal === '__ALL__' ? transactions : transactions.filter(t => t.person === filterVal);
 
   active.sort((a, b) => a.datum - b.datum);
+  currentActiveTransactions = () => active;
+  renderTransactionsTable(active);
+  renderPieChart(active);
 
   const totalIncome = active.filter(t => t.betrag > 0).reduce((s, t) => s + t.betrag, 0);
   const totalExpense = active.filter(t => t.betrag < 0).reduce((s, t) => s + t.betrag, 0);
@@ -505,14 +691,19 @@ if (!window.showDirectoryPicker) {
 }
 pickFolderBtn.addEventListener('click', async () => {
   try {
-    const rootHandle = await window.showDirectoryPicker();
+    const rootHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    rootDirHandle = rootHandle;
     document.getElementById('fileList').innerHTML = '';
     transactions = [];
     knownPersons = new Set();
+    labelMap = {};
+    labelsDirty = false;
+    await loadLabelsFromDir(rootHandle);
     await scanDirectory(rootHandle, 'Gemeinsam');
     if (transactions.length === 0) {
       document.getElementById('fileList').innerHTML = '<div>Keine CSV-Dateien im gewählten Ordner gefunden.</div>';
     }
+    document.getElementById('saveStatus').textContent = '';
     render();
   } catch (err) {
     if (err.name !== 'AbortError') {
@@ -520,6 +711,8 @@ pickFolderBtn.addEventListener('click', async () => {
     }
   }
 });
+
+document.getElementById('saveLabelsBtn').addEventListener('click', saveLabels);
 </script>
 
 </body>
