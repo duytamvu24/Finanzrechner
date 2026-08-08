@@ -254,6 +254,19 @@
         Interne Transfers (Bank ↔ PayPal) ausblenden
       </label>
     </div>
+    <div class="filter-row">
+      <label style="display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="onlyLabeledToggle">
+        Nur Buchungen mit vergebenem Label anzeigen
+      </label>
+    </div>
+    <div class="filter-row" style="flex-wrap:wrap;">
+      <span>Label-Filter (klicken zum Ein-/Ausblenden, auch per Klick im Kuchendiagramm):</span>
+    </div>
+    <div class="filter-row" style="flex-wrap:wrap;" id="labelFilterRow">
+      <span id="labelFilterChecks"></span>
+      <button class="save-btn" id="clearLabelFilterBtn" style="padding:0.3rem 0.7rem;font-size:0.8rem;">Filter zurücksetzen</button>
+    </div>
     <div class="filter-row" style="flex-wrap:wrap;">
       <span>Spalten:</span>
       <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="datum" checked>Datum</label>
@@ -575,6 +588,14 @@ function renderPieChart(list) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      onClick: (evt, elements) => {
+        if (!elements.length) return;
+        const clickedLabel = labels[elements[0].index];
+        if (selectedLabels.has(clickedLabel)) selectedLabels.delete(clickedLabel);
+        else selectedLabels.add(clickedLabel);
+        buildLabelFilterUI();
+        renderCombinedOverview();
+      },
       plugins: {
         legend: { position: 'bottom', labels: { color: '#6b6152', boxWidth: 11, font: { size: 11 } } }
       }
@@ -595,10 +616,33 @@ const COMBINED_COLS = [
 let combinedVisibleCols = { datum: true, quelle: false, vonan: true, zweck: true, betrag: true, label: false };
 
 let hideInternal = false;
+let onlyLabeled = false;
+let selectedLabels = new Set();
+
+function buildLabelFilterUI() {
+  const container = document.getElementById('labelFilterChecks');
+  container.innerHTML = LABELS.map(l =>
+    '<label style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;">' +
+    '<input type="checkbox" class="labelFilterCheck" value="' + l + '"' + (selectedLabels.has(l) ? ' checked' : '') + '>' + l + '</label>'
+  ).join('');
+  container.querySelectorAll('.labelFilterCheck').forEach(cb => {
+    cb.addEventListener('change', (e) => {
+      if (e.target.checked) selectedLabels.add(e.target.value);
+      else selectedLabels.delete(e.target.value);
+      renderCombinedOverview();
+    });
+  });
+}
 
 function renderCombinedOverview() {
-  const list = (hideInternal ? transactions.filter(t => !t.internal) : transactions.slice())
-    .sort((a, b) => b.datum - a.datum);
+  let list = hideInternal ? transactions.filter(t => !t.internal) : transactions.slice();
+  if (onlyLabeled) {
+    list = list.filter(t => (labelMap[txKey(t)] || 'Unkategorisiert') !== 'Unkategorisiert');
+  }
+  if (selectedLabels.size > 0) {
+    list = list.filter(t => selectedLabels.has(labelMap[txKey(t)] || 'Unkategorisiert'));
+  }
+  list.sort((a, b) => b.datum - a.datum);
   if (list.length === 0) {
     document.getElementById('combinedEmpty').style.display = 'block';
     document.getElementById('combinedWrap').style.display = 'none';
@@ -628,6 +672,8 @@ function renderCombinedOverview() {
       label: labelCell
     };
     const tr = document.createElement('tr');
+    if (t.betrag > 0) tr.style.backgroundColor = 'rgba(59,109,17,0.10)';
+    else if (t.betrag < 0) tr.style.backgroundColor = 'rgba(161,61,44,0.08)';
     if (t.internal) tr.style.opacity = '0.55';
     tr.innerHTML = visibleCols.map(c => '<td' + (c.key === 'zweck' ? ' class="zweck"' : '') + '>' + cellFor[c.key] + '</td>').join('');
     tbody.appendChild(tr);
@@ -650,6 +696,19 @@ document.getElementById('hideInternalToggle').addEventListener('change', (e) => 
   hideInternal = e.target.checked;
   renderCombinedOverview();
 });
+
+document.getElementById('onlyLabeledToggle').addEventListener('change', (e) => {
+  onlyLabeled = e.target.checked;
+  renderCombinedOverview();
+});
+
+document.getElementById('clearLabelFilterBtn').addEventListener('click', () => {
+  selectedLabels.clear();
+  buildLabelFilterUI();
+  renderCombinedOverview();
+});
+
+buildLabelFilterUI();
 
 document.querySelectorAll('.colToggle').forEach(cb => {
   cb.addEventListener('change', (e) => {
