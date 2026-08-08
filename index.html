@@ -264,10 +264,19 @@
   </div>
   <div class="card">
     <h2>Gesamtübersicht: alle Konten kombiniert</h2>
+    <div class="filter-row" style="flex-wrap:wrap;">
+      <span>Spalten:</span>
+      <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="datum" checked>Datum</label>
+      <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="quelle" checked>Quelle</label>
+      <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="vonan" checked>Von/An</label>
+      <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="zweck" checked>Verwendungszweck</label>
+      <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="betrag" checked>Betrag</label>
+      <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="label" checked>Label</label>
+    </div>
     <div id="combinedEmpty" class="empty-msg">Noch keine Daten.</div>
     <div class="tx-table-wrap" id="combinedWrap" style="display:none;">
       <table class="tx-table">
-        <thead><tr><th>Datum</th><th>Quelle</th><th>Von / An</th><th class="zweck">Verwendungszweck</th><th>Betrag</th><th>Label</th></tr></thead>
+        <thead id="combinedTableHead"></thead>
         <tbody id="combinedTableBody"></tbody>
       </table>
     </div>
@@ -494,6 +503,7 @@ function renderPersonBreakdown() {
 
 function matchInternalTransfers() {
   transactions.forEach(t => { t.internal = false; t.transferNote = ''; });
+  const TOLERANCE_MS = 3 * 24 * 60 * 60 * 1000;
 
   const bankSide = transactions.filter(t =>
     !t.internal &&
@@ -508,17 +518,21 @@ function matchInternalTransfers() {
 
   bankSide.forEach(b => {
     if (b.internal) return;
-    const match = paypalSide.find(p =>
-      !p.internal &&
-      p.datum.getTime() === b.datum.getTime() &&
-      Math.abs(Math.abs(p.betrag) - Math.abs(b.betrag)) < 0.01 &&
-      Math.sign(p.betrag) === -Math.sign(b.betrag)
-    );
-    if (match) {
+    let best = null;
+    let bestDiff = Infinity;
+    paypalSide.forEach(p => {
+      if (p.internal) return;
+      const amountMatches = Math.abs(Math.abs(p.betrag) - Math.abs(b.betrag)) < 0.01;
+      const signOk = Math.sign(p.betrag) === -Math.sign(b.betrag);
+      if (!amountMatches || !signOk) return;
+      const diff = Math.abs(p.datum.getTime() - b.datum.getTime());
+      if (diff <= TOLERANCE_MS && diff < bestDiff) { best = p; bestDiff = diff; }
+    });
+    if (best) {
       b.internal = true;
-      match.internal = true;
+      best.internal = true;
       b.transferNote = 'Interner Transfer (mit PayPal-Buchung abgeglichen)';
-      match.transferNote = 'Interner Transfer (mit Bankbuchung abgeglichen)';
+      best.transferNote = 'Interner Transfer (mit Bankbuchung abgeglichen)';
     }
   });
 }
@@ -607,26 +621,50 @@ function renderPieChart(list) {
 
 let currentActiveTransactions = () => [];
 
+const COMBINED_COLS = [
+  { key: 'datum', label: 'Datum' },
+  { key: 'quelle', label: 'Quelle' },
+  { key: 'vonan', label: 'Von / An' },
+  { key: 'zweck', label: 'Verwendungszweck' },
+  { key: 'betrag', label: 'Betrag' },
+  { key: 'label', label: 'Label' }
+];
+let combinedVisibleCols = { datum: true, quelle: true, vonan: true, zweck: true, betrag: true, label: true };
+
 function renderCombinedOverview() {
   const list = transactions.filter(t => !t.internal).slice().sort((a, b) => b.datum - a.datum);
   if (list.length === 0) return;
   document.getElementById('combinedEmpty').style.display = 'none';
   document.getElementById('combinedWrap').style.display = 'block';
+
+  const visibleCols = COMBINED_COLS.filter(c => combinedVisibleCols[c.key]);
+  const thead = document.getElementById('combinedTableHead');
+  thead.innerHTML = '<tr>' + visibleCols.map(c => '<th' + (c.key === 'zweck' ? ' class="zweck"' : '') + '>' + c.label + '</th>').join('') + '</tr>';
+
   const tbody = document.getElementById('combinedTableBody');
   tbody.innerHTML = '';
   list.forEach(t => {
     const label = labelMap[txKey(t)] || 'Unkategorisiert';
+    const cellFor = {
+      datum: t.datum.toLocaleDateString('de-DE'),
+      quelle: t.person,
+      vonan: t.empfaenger || '–',
+      zweck: t.verwendungszweck || '–',
+      betrag: formatEUR(t.betrag),
+      label: label
+    };
     const tr = document.createElement('tr');
-    tr.innerHTML =
-      '<td>' + t.datum.toLocaleDateString('de-DE') + '</td>' +
-      '<td>' + t.person + '</td>' +
-      '<td>' + (t.empfaenger || '–') + '</td>' +
-      '<td class="zweck">' + (t.verwendungszweck || '–') + '</td>' +
-      '<td>' + formatEUR(t.betrag) + '</td>' +
-      '<td>' + label + '</td>';
+    tr.innerHTML = visibleCols.map(c => '<td' + (c.key === 'zweck' ? ' class="zweck"' : '') + '>' + cellFor[c.key] + '</td>').join('');
     tbody.appendChild(tr);
   });
 }
+
+document.querySelectorAll('.colToggle').forEach(cb => {
+  cb.addEventListener('change', (e) => {
+    combinedVisibleCols[e.target.getAttribute('data-col')] = e.target.checked;
+    renderCombinedOverview();
+  });
+});
 
 function render() {
   if (transactions.length === 0) return;
