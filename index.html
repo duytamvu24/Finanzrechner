@@ -262,6 +262,16 @@
       <tbody id="monthTableBody"></tbody>
     </table>
   </div>
+  <div class="card">
+    <h2>Gesamtübersicht: alle Konten kombiniert</h2>
+    <div id="combinedEmpty" class="empty-msg">Noch keine Daten.</div>
+    <div class="tx-table-wrap" id="combinedWrap" style="display:none;">
+      <table class="tx-table">
+        <thead><tr><th>Datum</th><th>Quelle</th><th>Von / An</th><th class="zweck">Verwendungszweck</th><th>Betrag</th><th>Label</th></tr></thead>
+        <tbody id="combinedTableBody"></tbody>
+      </table>
+    </div>
+  </div>
 
 </div>
 
@@ -377,6 +387,7 @@ async function handleFiles(fileArray) {
     knownPersons.add(label);
     addFileToList(file.name);
   }
+  matchInternalTransfers();
   render();
 }
 
@@ -468,7 +479,7 @@ function renderPersonBreakdown() {
   const tbody = document.getElementById('personTableBody');
   tbody.innerHTML = '';
   Array.from(knownPersons).sort().forEach(p => {
-    const tx = transactions.filter(t => t.person === p);
+    const tx = transactions.filter(t => t.person === p && !t.internal);
     const income = tx.filter(t => t.betrag > 0).reduce((s, t) => s + t.betrag, 0);
     const expense = tx.filter(t => t.betrag < 0).reduce((s, t) => s + t.betrag, 0);
     const tr = document.createElement('tr');
@@ -478,6 +489,37 @@ function renderPersonBreakdown() {
       '<td>' + formatEUR(expense) + '</td>' +
       '<td>' + formatEUR(income + expense) + '</td>';
     tbody.appendChild(tr);
+  });
+}
+
+function matchInternalTransfers() {
+  transactions.forEach(t => { t.internal = false; t.transferNote = ''; });
+
+  const bankSide = transactions.filter(t =>
+    !t.internal &&
+    (t.empfaenger.toLowerCase().includes('paypal europe') ||
+     t.verwendungszweck.toLowerCase().includes('paypal europe'))
+  );
+  const paypalSide = transactions.filter(t =>
+    !t.internal &&
+    (t.verwendungszweck.toLowerCase().includes('bankgutschrift') ||
+     t.verwendungszweck.toLowerCase().includes('auszahlung'))
+  );
+
+  bankSide.forEach(b => {
+    if (b.internal) return;
+    const match = paypalSide.find(p =>
+      !p.internal &&
+      p.datum.getTime() === b.datum.getTime() &&
+      Math.abs(Math.abs(p.betrag) - Math.abs(b.betrag)) < 0.01 &&
+      Math.sign(p.betrag) === -Math.sign(b.betrag)
+    );
+    if (match) {
+      b.internal = true;
+      match.internal = true;
+      b.transferNote = 'Interner Transfer (mit PayPal-Buchung abgeglichen)';
+      match.transferNote = 'Interner Transfer (mit Bankbuchung abgeglichen)';
+    }
   });
 }
 
@@ -495,6 +537,17 @@ function renderTransactionsTable(list) {
     const key = txKey(t);
     const current = labelMap[key] || 'Unkategorisiert';
     const tr = document.createElement('tr');
+    if (t.internal) {
+      tr.style.opacity = '0.55';
+      tr.innerHTML =
+        '<td>' + t.datum.toLocaleDateString('de-DE') + '</td>' +
+        '<td>' + (t.empfaenger || '–') + '</td>' +
+        '<td class="zweck">' + (t.verwendungszweck || '–') + '</td>' +
+        '<td>' + formatEUR(t.betrag) + '</td>' +
+        '<td>🔁 Interner Transfer</td>';
+      tbody.appendChild(tr);
+      return;
+    }
     const options = LABELS.map(l => '<option value="' + l + '"' + (l === current ? ' selected' : '') + '>' + l + '</option>').join('');
     tr.innerHTML =
       '<td>' + t.datum.toLocaleDateString('de-DE') + '</td>' +
@@ -554,18 +607,41 @@ function renderPieChart(list) {
 
 let currentActiveTransactions = () => [];
 
+function renderCombinedOverview() {
+  const list = transactions.filter(t => !t.internal).slice().sort((a, b) => b.datum - a.datum);
+  if (list.length === 0) return;
+  document.getElementById('combinedEmpty').style.display = 'none';
+  document.getElementById('combinedWrap').style.display = 'block';
+  const tbody = document.getElementById('combinedTableBody');
+  tbody.innerHTML = '';
+  list.forEach(t => {
+    const label = labelMap[txKey(t)] || 'Unkategorisiert';
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + t.datum.toLocaleDateString('de-DE') + '</td>' +
+      '<td>' + t.person + '</td>' +
+      '<td>' + (t.empfaenger || '–') + '</td>' +
+      '<td class="zweck">' + (t.verwendungszweck || '–') + '</td>' +
+      '<td>' + formatEUR(t.betrag) + '</td>' +
+      '<td>' + label + '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
 function render() {
   if (transactions.length === 0) return;
 
   updatePersonFilterOptions();
   renderPersonBreakdown();
+  renderCombinedOverview();
 
   const filterVal = document.getElementById('personFilter').value;
-  const active = filterVal === '__ALL__' ? transactions : transactions.filter(t => t.person === filterVal);
+  const activeAll = filterVal === '__ALL__' ? transactions : transactions.filter(t => t.person === filterVal);
+  const active = activeAll.filter(t => !t.internal);
 
   active.sort((a, b) => a.datum - b.datum);
   currentActiveTransactions = () => active;
-  renderTransactionsTable(active);
+  renderTransactionsTable(activeAll);
   renderPieChart(active);
 
   const totalIncome = active.filter(t => t.betrag > 0).reduce((s, t) => s + t.betrag, 0);
@@ -720,6 +796,7 @@ pickFolderBtn.addEventListener('click', async () => {
     labelsDirty = false;
     await loadLabelsFromDir(rootHandle);
     await scanDirectory(rootHandle, 'Gemeinsam');
+    matchInternalTransfers();
     if (transactions.length === 0) {
       document.getElementById('fileList').innerHTML = '<div>Keine CSV-Dateien im gewählten Ordner gefunden.</div>';
     }
