@@ -248,6 +248,9 @@
   <div class="card">
     <h2>Gesamtübersicht: alle Konten kombiniert</h2>
     <div class="filter-row">
+      <input type="text" id="searchInput" placeholder="Suche in Von/An, Verwendungszweck, Label…" style="flex:1;padding:0.5rem 0.7rem;border-radius:6px;border:1px solid var(--paper-line);background:var(--card-bg);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;font-size:0.9rem;">
+    </div>
+    <div class="filter-row">
       <label style="display:flex;align-items:center;gap:6px;">
         <input type="checkbox" id="hideInternalToggle">
         Interne Transfers (Bank ↔ PayPal) ausblenden
@@ -676,6 +679,7 @@ let combinedVisibleCols = { datum: true, quelle: false, vonan: true, zweck: true
 let hideInternal = false;
 let onlyLabeled = false;
 let onlySuggested = false;
+let searchQuery = '';
 let selectedLabels = new Set();
 
 function buildLabelFilterUI() {
@@ -703,6 +707,16 @@ function renderCombinedOverview() {
   }
   if (selectedLabels.size > 0) {
     list = list.filter(t => selectedLabels.has(labelMap[txKey(t)] || 'Unkategorisiert'));
+  }
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    list = list.filter(t => {
+      const label = labelMap[txKey(t)] || autoSuggestLabel(t) || 'Unkategorisiert';
+      return (t.empfaenger || '').toLowerCase().includes(q) ||
+             (t.verwendungszweck || '').toLowerCase().includes(q) ||
+             (t.quelle || '').toLowerCase().includes(q) ||
+             label.toLowerCase().includes(q);
+    });
   }
   list.sort((a, b) => b.datum - a.datum);
   if (list.length === 0) {
@@ -788,6 +802,11 @@ function renderCombinedOverview() {
     });
   });
 }
+
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  searchQuery = e.target.value.trim();
+  renderCombinedOverview();
+});
 
 document.getElementById('hideInternalToggle').addEventListener('change', (e) => {
   hideInternal = e.target.checked;
