@@ -176,7 +176,7 @@
       <span class="or-sep">oder</span>
       <div class="upload-zone" id="dropZone">
         <div>CSV-Dateien hierher ziehen</div>
-        <div class="hint">falls dein Browser keinen Ordner-Zugriff unterstützt</div>
+        <div class="hint">falls dein Browser keinen Ordner-Zugriff unterstützt · Sparkasse- oder PayPal-Export</div>
         <input type="file" id="fileInput" accept=".csv" multiple>
       </div>
     </div>
@@ -278,9 +278,9 @@ let labelMap = {};
 let labelsDirty = false;
 
 const LABELS = [
-  'Wohnung', 'Essen', 'Abos', 'Freizeit', 'Mitgliedschaften',
-  'Transport', 'Versicherungen', 'Gesundheit', 'Shopping',
-  'Gehalt/Einkommen', 'Sparen', 'Bargeld', 'Reisen', 'Geschenke', 'Sonstiges'
+  'Wohnung', 'Essen', 'Freizeit/Shopping', 'Abos', 'Reisen',
+  'Versicherungen', 'Transport', 'Gehalt/Einkommen', 'Sparen',
+  'Unkategorisiert', 'Gesundheit', 'Bargeld'
 ];
 
 function txKey(t) {
@@ -323,21 +323,37 @@ function parseCsvFile(file, person) {
   return new Promise((resolve) => {
     Papa.parse(file, {
       header: true,
-      delimiter: ';',
       skipEmptyLines: true,
       complete: (results) => {
+        const fields = results.meta.fields || [];
+        const isPaypal = fields.includes('Transaktionscode') || fields.includes('Guthaben');
         const rows = [];
         results.data.forEach(row => {
-          const datum = parseGermanDate(row['Buchungstag']);
-          if (!datum) return;
+          let datum, betrag, verwendungszweck, empfaenger, kategorie;
+          if (isPaypal) {
+            datum = parseGermanDate(row['Datum']);
+            if (!datum) return;
+            const nettoStr = row['Netto'];
+            betrag = (nettoStr !== undefined && nettoStr !== '') ? parseGermanAmount(nettoStr) : parseGermanAmount(row['Brutto']);
+            verwendungszweck = (row['Beschreibung'] || '').trim();
+            empfaenger = (row['Name'] || '').trim();
+            kategorie = '';
+          } else {
+            datum = parseGermanDate(row['Buchungstag']);
+            if (!datum) return;
+            betrag = parseGermanAmount(row['Betrag']);
+            verwendungszweck = (row['Verwendungszweck'] || '').trim();
+            empfaenger = (row['Beguenstigter/Zahlungspflichtiger'] || '').trim();
+            kategorie = (row['Kategorie'] || '').trim();
+          }
           rows.push({
             datum: datum,
             monthKey: monthKey(datum),
-            betrag: parseGermanAmount(row['Betrag']),
-            buchungstext: (row['Buchungstext'] || '').trim(),
-            verwendungszweck: (row['Verwendungszweck'] || '').trim(),
-            empfaenger: (row['Beguenstigter/Zahlungspflichtiger'] || '').trim(),
-            kategorie: (row['Kategorie'] || '').trim() || 'Unkategorisiert',
+            betrag: betrag,
+            buchungstext: '',
+            verwendungszweck: verwendungszweck,
+            empfaenger: empfaenger,
+            kategorie: kategorie || 'Unkategorisiert',
             person: person
           });
         });
@@ -460,7 +476,7 @@ function renderPersonBreakdown() {
 }
 
 function effectiveLabel(t) {
-  return labelMap[txKey(t)] || t.kategorie || 'Unkategorisiert';
+  return labelMap[txKey(t)] || 'Unkategorisiert';
 }
 
 function renderTransactionsTable(list) {
@@ -471,11 +487,9 @@ function renderTransactionsTable(list) {
   const sorted = list.slice().sort((a, b) => b.datum - a.datum);
   sorted.forEach(t => {
     const key = txKey(t);
-    const current = labelMap[key] || '';
+    const current = labelMap[key] || 'Unkategorisiert';
     const tr = document.createElement('tr');
-    const options = ['<option value="">–</option>']
-      .concat(LABELS.map(l => '<option value="' + l + '"' + (l === current ? ' selected' : '') + '>' + l + '</option>'))
-      .join('');
+    const options = LABELS.map(l => '<option value="' + l + '"' + (l === current ? ' selected' : '') + '>' + l + '</option>').join('');
     tr.innerHTML =
       '<td>' + t.datum.toLocaleDateString('de-DE') + '</td>' +
       '<td>' + (t.empfaenger || '–') + '</td>' +
