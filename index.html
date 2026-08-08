@@ -260,7 +260,6 @@
       <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="quelle">Quelle</label>
       <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="vonan" checked>Von/An</label>
       <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="zweck" checked>Verwendungszweck</label>
-      <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="kommentar" checked>Kommentar</label>
       <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="betrag" checked>Betrag</label>
       <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="label" checked>Label</label>
     </div>
@@ -348,17 +347,17 @@ function parseCsvFile(file, person) {
         }
         const rows = [];
         results.data.forEach(row => {
-          let datum, betrag, verwendungszweck, empfaenger, kategorie, kommentar;
+          let datum, betrag, verwendungszweck, empfaenger, kategorie;
           if (isPaypal) {
             datum = parseGermanDate(row['Datum']);
             if (!datum) return;
             const nettoStr = row['Netto'];
             betrag = (nettoStr !== undefined && nettoStr !== '') ? parseGermanAmount(nettoStr) : parseGermanAmount(row['Brutto']);
-            verwendungszweck = (row['Beschreibung'] !== undefined ? row['Beschreibung'] : row['Typ']) || '';
-            verwendungszweck = verwendungszweck.trim();
+            const typRaw = ((row['Beschreibung'] !== undefined ? row['Beschreibung'] : row['Typ']) || '').trim();
+            verwendungszweck = (row['Hinweis'] || row['Betreff'] || typRaw || '').trim();
             empfaenger = (row['Name'] || '').trim();
             kategorie = '';
-            kommentar = (row['Hinweis'] || row['Betreff'] || '').trim();
+            var typField = typRaw;
           } else {
             datum = parseGermanDate(row['Buchungstag']);
             if (!datum) return;
@@ -366,7 +365,7 @@ function parseCsvFile(file, person) {
             verwendungszweck = (row['Verwendungszweck'] || '').trim();
             empfaenger = (row['Beguenstigter/Zahlungspflichtiger'] || '').trim();
             kategorie = (row['Kategorie'] || '').trim();
-            kommentar = '';
+            var typField = '';
           }
           rows.push({
             datum: datum,
@@ -374,7 +373,7 @@ function parseCsvFile(file, person) {
             betrag: betrag,
             buchungstext: '',
             verwendungszweck: verwendungszweck,
-            kommentar: kommentar,
+            typRaw: typField,
             empfaenger: empfaenger,
             kategorie: kategorie || 'Unkategorisiert',
             person: person
@@ -516,8 +515,8 @@ function matchInternalTransfers() {
   );
   const paypalSide = transactions.filter(t =>
     !t.internal &&
-    (t.verwendungszweck.toLowerCase().includes('bankgutschrift') ||
-     t.verwendungszweck.toLowerCase().includes('auszahlung'))
+    (t.typRaw.toLowerCase().includes('bankgutschrift') ||
+     t.typRaw.toLowerCase().includes('auszahlung'))
   );
 
   bankSide.forEach(b => {
@@ -588,11 +587,10 @@ const COMBINED_COLS = [
   { key: 'quelle', label: 'Quelle' },
   { key: 'vonan', label: 'Von / An' },
   { key: 'zweck', label: 'Verwendungszweck' },
-  { key: 'kommentar', label: 'Kommentar' },
   { key: 'betrag', label: 'Betrag' },
   { key: 'label', label: 'Label' }
 ];
-let combinedVisibleCols = { datum: true, quelle: false, vonan: true, zweck: true, kommentar: true, betrag: true, label: false };
+let combinedVisibleCols = { datum: true, quelle: false, vonan: true, zweck: true, betrag: true, label: false };
 
 let hideInternal = false;
 
@@ -609,7 +607,7 @@ function renderCombinedOverview() {
 
   const visibleCols = COMBINED_COLS.filter(c => combinedVisibleCols[c.key]);
   const thead = document.getElementById('combinedTableHead');
-  thead.innerHTML = '<tr>' + visibleCols.map(c => '<th' + (c.key === 'zweck' || c.key === 'kommentar' ? ' class="zweck"' : '') + '>' + c.label + '</th>').join('') + '</tr>';
+  thead.innerHTML = '<tr>' + visibleCols.map(c => '<th' + (c.key === 'zweck' ? ' class="zweck"' : '') + '>' + c.label + '</th>').join('') + '</tr>';
 
   const tbody = document.getElementById('combinedTableBody');
   tbody.innerHTML = '';
@@ -624,13 +622,12 @@ function renderCombinedOverview() {
       quelle: t.person,
       vonan: t.empfaenger || '–',
       zweck: t.verwendungszweck || '–',
-      kommentar: t.kommentar || '–',
       betrag: formatEUR(t.betrag),
       label: labelCell
     };
     const tr = document.createElement('tr');
     if (t.internal) tr.style.opacity = '0.55';
-    tr.innerHTML = visibleCols.map(c => '<td' + (c.key === 'zweck' || c.key === 'kommentar' ? ' class="zweck"' : '') + '>' + cellFor[c.key] + '</td>').join('');
+    tr.innerHTML = visibleCols.map(c => '<td' + (c.key === 'zweck' ? ' class="zweck"' : '') + '>' + cellFor[c.key] + '</td>').join('');
     tbody.appendChild(tr);
   });
 
