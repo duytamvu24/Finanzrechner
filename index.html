@@ -443,16 +443,28 @@ async function loadLabelsFromDir(dirHandle) {
   } catch (err) {
     // keine labels.csv vorhanden - kein Problem, einfach leer starten
   }
+  try {
+    const handle = await dirHandle.getFileHandle('regeln.csv');
+    const file = await handle.getFile();
+    const text = await file.text();
+    const parsed = Papa.parse(text, { header: true, delimiter: ';', skipEmptyLines: true });
+    parsed.data.forEach(row => {
+      const empf = normalizeEmpfaenger(row['Empfaenger']);
+      if (empf && row['Label']) learnedRules[empf] = row['Label'].trim();
+    });
+  } catch (err) {
+    // keine regeln.csv vorhanden - kein Problem
+  }
 }
 
 async function saveLabels() {
   if (!rootDirHandle) return;
+  const esc = (s) => '"' + String(s).replace(/"/g, '""') + '"';
   const lines = ['"Datum";"VonAn";"Verwendungszweck";"Betrag";"Label"'];
   transactions.forEach(t => {
     const key = txKey(t);
     const label = labelMap[key];
     if (!label) return;
-    const esc = (s) => '"' + String(s).replace(/"/g, '""') + '"';
     lines.push([
       esc(t.datum.toLocaleDateString('de-DE')),
       esc(t.empfaenger),
@@ -461,13 +473,23 @@ async function saveLabels() {
       esc(label)
     ].join(';'));
   });
+  const ruleLines = ['"Empfaenger";"Label"'];
+  Object.keys(learnedRules).forEach(empf => {
+    ruleLines.push([esc(empf), esc(learnedRules[empf])].join(';'));
+  });
   try {
     const handle = await rootDirHandle.getFileHandle('labels.csv', { create: true });
     const writable = await handle.createWritable();
     await writable.write(lines.join('\n'));
     await writable.close();
+
+    const rulesHandle = await rootDirHandle.getFileHandle('regeln.csv', { create: true });
+    const rulesWritable = await rulesHandle.createWritable();
+    await rulesWritable.write(ruleLines.join('\n'));
+    await rulesWritable.close();
+
     labelsDirty = false;
-    document.getElementById('saveStatus').textContent = 'Gespeichert unter labels.csv';
+    document.getElementById('saveStatus').textContent = 'Gespeichert unter labels.csv und regeln.csv';
     document.getElementById('saveLabelsBtn').disabled = true;
   } catch (err) {
     document.getElementById('saveStatus').textContent = 'Speichern fehlgeschlagen: ' + err.message;
@@ -556,18 +578,28 @@ function matchInternalTransfers() {
 }
 
 const AUTO_LABEL_RULES = {
-  'Essen': ['rewe', 'lidl', 'edeka', 'aldi', 'kaufland', 'penny', 'netto marken', 'mcdonald', 'burger king', 'kfc', 'lieferando', 'restaurant', 'bäckerei', 'subway', 'picnic'],
+  'Essen': ['rewe', 'lidl', 'edeka', 'aldi', 'kaufland', 'penny', 'netto marken', 'mcdonald', 'burger king', 'kfc', 'lieferando', 'restaurant', 'bäckerei', 'subway'],
   'Abos': ['drillisch', 'telefonica', 'telekom', 'vodafone', 'fitx', 'mcfit', 'netflix', 'spotify', 'disney+', 'amazon prime', 'sky deutschland', ' o2 '],
   'Transport': ['deutsche bahn', 'db vertrieb', 'tankstelle', 'shell', 'aral', ' esso', 'sixt', 'uber', 'taxi', 'bvg', 'vrr', 'mvv'],
   'Versicherungen': ['versicherung', 'allianz', 'huk-coburg', 'ergo', 'axa'],
-  'Gesundheit': ['apotheke', 'dm-drogerie', 'rossmann', 'arztpraxis', 'ginko', 'physio', 'orthopädie'],
+  'Gesundheit': ['apotheke', 'dm-drogerie', 'rossmann', 'arztpraxis'],
   'Bargeld': ['geldautomat', 'bargeldauszahlung'],
-  'Reisen': ['booking.com', 'airbnb', 'ryanair', 'lufthansa', 'hotel', 'getyourguide'],
-  'Wohnung': ['miete', 'hausverwaltung', 'stadtwerke', 'düsseldorf', 'duesseldorf'],
+  'Reisen': ['booking.com', 'airbnb', 'ryanair', 'lufthansa', 'hotel'],
+  'Wohnung': ['miete', 'hausverwaltung', 'stadtwerke'],
   'Sparen': ['sparplan', 'tagesgeldkonto']
 };
 
+let learnedRules = {};
+
+function normalizeEmpfaenger(s) {
+  return (s || '').trim().toLowerCase();
+}
+
 function autoSuggestLabel(t) {
+  const normEmp = normalizeEmpfaenger(t.empfaenger);
+  if (normEmp && normEmp !== '-' && normEmp !== '–' && learnedRules[normEmp]) {
+    return learnedRules[normEmp];
+  }
   const haystack = ((t.empfaenger || '') + ' ' + (t.verwendungszweck || '')).toLowerCase();
   for (const label of Object.keys(AUTO_LABEL_RULES)) {
     if (AUTO_LABEL_RULES[label].some(kw => haystack.includes(kw))) return label;
@@ -683,9 +715,11 @@ function renderCombinedOverview() {
     const suggested = autoSuggestLabel(t);
     const current = manualLabel || suggested || 'Unkategorisiert';
     const isAuto = !manualLabel && !!suggested;
+    const normEmp = normalizeEmpfaenger(t.empfaenger);
+    const empfAttr = (normEmp && normEmp !== '-' && normEmp !== '–') ? ' data-empf="' + encodeURIComponent(normEmp) + '"' : '';
     const labelCell = t.internal
       ? '🔁 Interner Transfer'
-      : '<select data-key="' + encodeURIComponent(key) + '"' +
+      : '<select data-key="' + encodeURIComponent(key) + '"' + empfAttr +
         (isAuto ? ' style="border-style:dashed;" title="Automatisch vorgeschlagen – zum Bestätigen einfach auswählen"' : '') +
         '>' + LABELS.map(l => '<option value="' + l + '"' + (l === current ? ' selected' : '') + '>' + l + (isAuto && l === current ? ' (Vorschlag)' : '') + '</option>').join('') + '</select>';
     const cellFor = {
@@ -707,11 +741,19 @@ function renderCombinedOverview() {
   tbody.querySelectorAll('select').forEach(sel => {
     sel.addEventListener('change', (e) => {
       const key = decodeURIComponent(e.target.getAttribute('data-key'));
-      if (e.target.value) labelMap[key] = e.target.value;
+      const value = e.target.value;
+      if (value) labelMap[key] = value;
       else delete labelMap[key];
+
+      const empfAttr = e.target.getAttribute('data-empf');
+      if (empfAttr && value) {
+        learnedRules[decodeURIComponent(empfAttr)] = value;
+      }
+
       labelsDirty = true;
       document.getElementById('saveLabelsBtn').disabled = !rootDirHandle;
       document.getElementById('saveStatus').textContent = rootDirHandle ? 'Ungespeicherte Änderungen' : 'Zum Speichern: über "Ordner auswählen" laden';
+      renderCombinedOverview();
       renderPieChart(currentActiveTransactions());
     });
   });
@@ -906,6 +948,7 @@ pickFolderBtn.addEventListener('click', async () => {
     transactions = [];
     knownPersons = new Set();
     labelMap = {};
+    learnedRules = {};
     labelsDirty = false;
     await loadLabelsFromDir(rootHandle);
     await scanDirectory(rootHandle, 'Gemeinsam');
