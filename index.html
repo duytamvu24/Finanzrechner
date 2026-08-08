@@ -29,7 +29,7 @@
     color:var(--ink);
     padding:0 0 4rem 0;
   }
-  .wrap{max-width:960px;margin:0 auto;padding:0 24px;}
+  .wrap{max-width:min(1200px, 95vw);margin:0 auto;padding:0 24px;}
   header{
     background:var(--ledger-green);
     color:#F2EEE0;
@@ -136,9 +136,8 @@
   }
   .filter-row{display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem;font-size:0.85rem;color:#6b6152;}
   .tx-table-wrap{max-height:480px;overflow-y:auto;}
-  .tx-table{font-size:0.82rem;}
-  .tx-table td, .tx-table th{white-space:nowrap;}
-  .tx-table td.zweck{white-space:normal;max-width:260px;}
+  .tx-table{font-size:0.82rem;table-layout:fixed;width:100%;}
+  .tx-table td, .tx-table th{white-space:normal;overflow-wrap:break-word;word-break:break-word;}
   .save-row{display:flex;align-items:center;gap:1rem;margin-top:1rem;}
   .save-btn{
     font-family:'IBM Plex Sans',sans-serif;
