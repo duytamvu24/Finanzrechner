@@ -248,6 +248,12 @@
 
   <div class="card">
     <h2>Gesamtübersicht: alle Konten kombiniert</h2>
+    <div class="filter-row">
+      <label style="display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="hideInternalToggle">
+        Interne Transfers (Bank ↔ PayPal) ausblenden
+      </label>
+    </div>
     <div class="filter-row" style="flex-wrap:wrap;">
       <span>Spalten:</span>
       <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="datum" checked>Datum</label>
@@ -588,9 +594,16 @@ const COMBINED_COLS = [
 ];
 let combinedVisibleCols = { datum: true, quelle: false, vonan: true, zweck: true, kommentar: true, betrag: true, label: false };
 
+let hideInternal = false;
+
 function renderCombinedOverview() {
-  const list = transactions.slice().sort((a, b) => b.datum - a.datum);
-  if (list.length === 0) return;
+  const list = (hideInternal ? transactions.filter(t => !t.internal) : transactions.slice())
+    .sort((a, b) => b.datum - a.datum);
+  if (list.length === 0) {
+    document.getElementById('combinedEmpty').style.display = 'block';
+    document.getElementById('combinedWrap').style.display = 'none';
+    return;
+  }
   document.getElementById('combinedEmpty').style.display = 'none';
   document.getElementById('combinedWrap').style.display = 'block';
 
@@ -633,6 +646,11 @@ function renderCombinedOverview() {
     });
   });
 }
+
+document.getElementById('hideInternalToggle').addEventListener('change', (e) => {
+  hideInternal = e.target.checked;
+  renderCombinedOverview();
+});
 
 document.querySelectorAll('.colToggle').forEach(cb => {
   cb.addEventListener('change', (e) => {
