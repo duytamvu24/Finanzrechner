@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kontobuch – Finanzübersicht</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EDE7D9;
+    --paper-line:#CFC6AC;
+    --ledger-green:#29463B;
+    --ledger-green-dark:#1B2F27;
+    --ink:#2E3A46;
+    --stamp-red:#A13D2C;
+    --gold:#8C6A3F;
+    --card-bg:#F7F3E8;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    background-image: repeating-linear-gradient(
+      var(--paper) 0px, var(--paper) 27px,
+      var(--paper-line) 28px
+    );
+    font-family:'IBM Plex Sans', sans-serif;
+    color:var(--ink);
+    padding:0 0 4rem 0;
+  }
+  .wrap{max-width:960px;margin:0 auto;padding:0 24px;}
+  header{
+    background:var(--ledger-green);
+    color:#F2EEE0;
+    padding:2.5rem 24px 3rem;
+    margin-bottom:-2rem;
+  }
+  header .wrap{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1rem;}
+  h1{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:2.2rem;
+    margin:0;
+    letter-spacing:0.5px;
+  }
+  header p{margin:0.3rem 0 0;color:#C9D6C9;font-size:0.95rem;}
+  .stamp{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    border:3px solid var(--stamp-red);
+    color:var(--stamp-red);
+    padding:0.6rem 1.2rem;
+    border-radius:6px;
+    transform:rotate(-3deg);
+    font-size:1.1rem;
+    background:rgba(161,61,44,0.06);
+    white-space:nowrap;
+  }
+  .card{
+    background:var(--card-bg);
+    border:1px solid var(--paper-line);
+    border-radius:4px;
+    padding:1.5rem;
+    margin-top:2rem;
+    box-shadow:0 2px 0 rgba(0,0,0,0.03);
+  }
+  .card h2{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:1.3rem;
+    margin:0 0 1rem;
+    color:var(--ledger-green-dark);
+  }
+  .folder-row{display:flex;gap:0.8rem;align-items:center;flex-wrap:wrap;}
+  button.pick{
+    font-family:'IBM Plex Sans',sans-serif;
+    background:var(--ledger-green);
+    color:#F2EEE0;
+    border:none;
+    padding:0.7rem 1.3rem;
+    border-radius:6px;
+    font-size:0.95rem;
+    cursor:pointer;
+  }
+  button.pick:hover{background:var(--ledger-green-dark);}
+  .or-sep{color:#6b6152;font-size:0.85rem;}
+  .upload-zone{
+    border:2px dashed var(--gold);
+    border-radius:6px;
+    padding:1.2rem;
+    text-align:center;
+    cursor:pointer;
+    transition:background 0.15s ease;
+    flex:1;
+    min-width:220px;
+  }
+  .upload-zone:hover, .upload-zone.dragover{background:rgba(140,106,63,0.08);}
+  .upload-zone input{display:none;}
+  .upload-zone .hint{font-size:0.8rem;color:#6b6152;margin-top:0.3rem;}
+  .filelist{margin-top:0.8rem;font-size:0.85rem;color:var(--ink);}
+  .not-supported{font-size:0.8rem;color:#6b6152;margin-top:0.5rem;}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-top:2rem;}
+  .stat{
+    background:var(--card-bg);
+    border:1px solid var(--paper-line);
+    border-radius:4px;
+    padding:1.1rem 1.2rem;
+  }
+  .stat .label{font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;color:#6b6152;}
+  .stat .value{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:1.5rem;
+    font-weight:500;
+    margin-top:0.3rem;
+  }
+  .value.pos{color:var(--ledger-green-dark);}
+  .value.neg{color:var(--stamp-red);}
+  canvas{max-width:100%;}
+  .empty-msg{color:#6b6152;font-style:italic;font-size:0.95rem;}
+  table{width:100%;border-collapse:collapse;font-family:'IBM Plex Mono', monospace;font-size:0.85rem;margin-top:0.5rem;}
+  th,td{text-align:right;padding:0.4rem 0.6rem;border-bottom:1px solid var(--paper-line);}
+  th:first-child,td:first-child{text-align:left;}
+  th{font-family:'IBM Plex Sans',sans-serif;font-weight:500;color:#6b6152;font-size:0.75rem;text-transform:uppercase;}
+  .legend{display:flex;gap:1.2rem;margin-bottom:0.8rem;font-size:0.82rem;color:#6b6152;}
+  .legend span{display:flex;align-items:center;gap:6px;}
+  .swatch{width:11px;height:11px;border-radius:2px;display:inline-block;}
+  select{
+    font-family:'IBM Plex Sans',sans-serif;
+    padding:0.4rem 0.6rem;
+    border-radius:4px;
+    border:1px solid var(--paper-line);
+    background:var(--card-bg);
+    color:var(--ink);
+    font-size:0.9rem;
+  }
+  .filter-row{display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem;font-size:0.85rem;color:#6b6152;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div>
+      <h1>Kontobuch</h1>
+      <p>Zwei Konten, ein Überblick</p>
+    </div>
+    <div class="stamp" id="stampBalance">Saldo: —</div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="card">
+    <h2>Ordner mit den Kontoauszügen</h2>
+    <div class="folder-row">
+      <button class="pick" id="pickFolderBtn">Ordner auswählen</button>
+      <span class="or-sep">oder</span>
+      <div class="upload-zone" id="dropZone">
+        <div>CSV-Dateien hierher ziehen</div>
+        <div class="hint">falls dein Browser keinen Ordner-Zugriff unterstützt</div>
+        <input type="file" id="fileInput" accept=".csv" multiple>
+      </div>
+    </div>
+    <div class="not-supported" id="notSupported" style="display:none;">
+      Dein Browser unterstützt die direkte Ordner-Auswahl nicht (funktioniert in Chrome/Edge). Nutze stattdessen den CSV-Upload rechts.
+    </div>
+    <div class="filelist" id="fileList"></div>
+  </div>
+
+  <div class="stats" id="statCards">
+    <div class="stat"><div class="label">Einnahmen gesamt</div><div class="value pos" id="statIncome">—</div></div>
+    <div class="stat"><div class="label">Ausgaben gesamt</div><div class="value neg" id="statExpense">—</div></div>
+    <div class="stat"><div class="label">Saldo gesamt</div><div class="value" id="statNet">—</div></div>
+    <div class="stat"><div class="label">Dieser Monat</div><div class="value" id="statThisMonth">—</div></div>
+  </div>
+
+  <div class="card" id="personCard" style="display:none;">
+    <h2>Aufteilung nach Person</h2>
+    <table>
+      <thead><tr><th>Person</th><th>Einnahmen</th><th>Ausgaben</th><th>Saldo</th></tr></thead>
+      <tbody id="personTableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Verlauf des Kontostands</h2>
+    <div class="filter-row" id="timelineFilterRow" style="display:none;">
+      <span>Anzeigen für:</span>
+      <select id="personFilter">
+        <option value="__ALL__">Beide Personen (kombiniert)</option>
+      </select>
+    </div>
+    <div id="timelineEmpty" class="empty-msg">Noch keine Daten – wähle oben einen Ordner oder lade eine CSV-Datei hoch.</div>
+    <div style="position:relative;height:280px;display:none;" id="timelineWrap">
+      <canvas id="timelineChart" role="img" aria-label="Liniendiagramm des kumulierten Kontostands über die Zeit"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Einnahmen und Ausgaben pro Monat</h2>
+    <div id="monthlyEmpty" class="empty-msg">Noch keine Daten.</div>
+    <div id="monthlyContent" style="display:none;">
+      <div class="legend">
+        <span><span class="swatch" style="background:#3B6D11"></span>Einnahmen</span>
+        <span><span class="swatch" style="background:#A13D2C"></span>Ausgaben</span>
+      </div>
+      <div style="position:relative;height:280px;">
+        <canvas id="monthlyChart" role="img" aria-label="Balkendiagramm mit Einnahmen und Ausgaben je Monat"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Monatsübersicht</h2>
+    <div id="tableEmpty" class="empty-msg">Noch keine Daten.</div>
+    <table id="monthTable" style="display:none;">
+      <thead><tr><th>Monat</th><th>Einnahmen</th><th>Ausgaben</th><th>Saldo</th></tr></thead>
+      <tbody id="monthTableBody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+let transactions = [];
+let timelineChart = null;
+let monthlyChart = null;
+let knownPersons = new Set();
+
+function parseGermanAmount(str) {
+  if (!str) return 0;
+  const cleaned = str.trim().replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(cleaned);
+  return isNaN(n) ? 0 : n;
+}
+
+function parseGermanDate(str) {
+  if (!str) return null;
+  const parts = str.trim().split('.');
+  if (parts.length !== 3) return null;
+  let [d, m, y] = parts;
+  if (y.length === 2) y = '20' + y;
+  const date = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+  return isNaN(date.getTime()) ? null : date;
+}
+
+function monthKey(date) {
+  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
+}
+
+function monthLabel(key) {
+  const [y, m] = key.split('-');
+  const names = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+  return names[parseInt(m) - 1] + ' ' + y;
+}
+
+function formatEUR(n) {
+  const sign = n < 0 ? '-' : '';
+  return sign + Math.abs(n).toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
+}
+
+function parseCsvFile(file, person) {
+  return new Promise((resolve) => {
+    Papa.parse(file, {
+      header: true,
+      delimiter: ';',
+      skipEmptyLines: true,
+      complete: (results) => {
+        const rows = [];
+        results.data.forEach(row => {
+          const datum = parseGermanDate(row['Buchungstag']);
+          if (!datum) return;
+          rows.push({
+            datum: datum,
+            monthKey: monthKey(datum),
+            betrag: parseGermanAmount(row['Betrag']),
+            buchungstext: (row['Buchungstext'] || '').trim(),
+            verwendungszweck: (row['Verwendungszweck'] || '').trim(),
+            empfaenger: (row['Beguenstigter/Zahlungspflichtiger'] || '').trim(),
+            kategorie: (row['Kategorie'] || '').trim() || 'Unkategorisiert',
+            person: person
+          });
+        });
+        resolve(rows);
+      }
+    });
+  });
+}
+
+function addFileToList(name) {
+  const li = document.createElement('div');
+  li.textContent = '✓ ' + name;
+  document.getElementById('fileList').appendChild(li);
+}
+
+async function handleFiles(fileArray) {
+  for (const file of fileArray) {
+    const rows = await parseCsvFile(file, 'Gemeinsam');
+    transactions.push(...rows);
+    addFileToList(file.name);
+  }
+  render();
+}
+
+async function scanDirectory(dirHandle, personLabel) {
+  for await (const [name, handle] of dirHandle.entries()) {
+    if (handle.kind === 'file' && name.toLowerCase().endsWith('.csv')) {
+      const file = await handle.getFile();
+      const rows = await parseCsvFile(file, personLabel);
+      transactions.push(...rows);
+      knownPersons.add(personLabel);
+      addFileToList((personLabel !== 'Gemeinsam' ? personLabel + ' / ' : '') + name);
+    } else if (handle.kind === 'directory') {
+      await scanDirectory(handle, name);
+    }
+  }
+}
+
+function updatePersonFilterOptions() {
+  const sel = document.getElementById('personFilter');
+  sel.innerHTML = '<option value="__ALL__">Beide Personen (kombiniert)</option>';
+  Array.from(knownPersons).sort().forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p;
+    opt.textContent = p;
+    sel.appendChild(opt);
+  });
+  document.getElementById('timelineFilterRow').style.display = knownPersons.size > 1 ? 'flex' : 'none';
+}
+
+function renderPersonBreakdown() {
+  const card = document.getElementById('personCard');
+  if (knownPersons.size <= 1) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  const tbody = document.getElementById('personTableBody');
+  tbody.innerHTML = '';
+  Array.from(knownPersons).sort().forEach(p => {
+    const tx = transactions.filter(t => t.person === p);
+    const income = tx.filter(t => t.betrag > 0).reduce((s, t) => s + t.betrag, 0);
+    const expense = tx.filter(t => t.betrag < 0).reduce((s, t) => s + t.betrag, 0);
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + p + '</td>' +
+      '<td>' + formatEUR(income) + '</td>' +
+      '<td>' + formatEUR(expense) + '</td>' +
+      '<td>' + formatEUR(income + expense) + '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function render() {
+  if (transactions.length === 0) return;
+
+  updatePersonFilterOptions();
+  renderPersonBreakdown();
+
+  const filterVal = document.getElementById('personFilter').value;
+  const active = filterVal === '__ALL__' ? transactions : transactions.filter(t => t.person === filterVal);
+
+  active.sort((a, b) => a.datum - b.datum);
+
+  const totalIncome = active.filter(t => t.betrag > 0).reduce((s, t) => s + t.betrag, 0);
+  const totalExpense = active.filter(t => t.betrag < 0).reduce((s, t) => s + t.betrag, 0);
+  const net = totalIncome + totalExpense;
+
+  document.getElementById('statIncome').textContent = formatEUR(totalIncome);
+  document.getElementById('statExpense').textContent = formatEUR(totalExpense);
+  const netEl = document.getElementById('statNet');
+  netEl.textContent = formatEUR(net);
+  netEl.className = 'value ' + (net >= 0 ? 'pos' : 'neg');
+
+  const now = new Date();
+  const thisMonthKey = monthKey(now);
+  const thisMonthTx = active.filter(t => t.monthKey === thisMonthKey);
+  const thisMonthNet = thisMonthTx.reduce((s, t) => s + t.betrag, 0);
+  const thisMonthEl = document.getElementById('statThisMonth');
+  thisMonthEl.textContent = formatEUR(thisMonthNet);
+  thisMonthEl.className = 'value ' + (thisMonthNet >= 0 ? 'pos' : 'neg');
+
+  document.getElementById('stampBalance').textContent = 'Saldo: ' + formatEUR(net);
+
+  const byMonth = {};
+  active.forEach(t => {
+    if (!byMonth[t.monthKey]) byMonth[t.monthKey] = { income: 0, expense: 0 };
+    if (t.betrag > 0) byMonth[t.monthKey].income += t.betrag;
+    else byMonth[t.monthKey].expense += t.betrag;
+  });
+  const monthKeys = Object.keys(byMonth).sort();
+
+  document.getElementById('timelineEmpty').style.display = 'none';
+  document.getElementById('timelineWrap').style.display = 'block';
+  document.getElementById('monthlyEmpty').style.display = 'none';
+  document.getElementById('monthlyContent').style.display = 'block';
+  document.getElementById('tableEmpty').style.display = 'none';
+  document.getElementById('monthTable').style.display = 'table';
+
+  let running = 0;
+  const timelineLabels = [];
+  const timelineData = [];
+  active.forEach(t => {
+    running += t.betrag;
+    timelineLabels.push(t.datum.toLocaleDateString('de-DE'));
+    timelineData.push(Math.round(running * 100) / 100);
+  });
+
+  if (timelineChart) timelineChart.destroy();
+  timelineChart = new Chart(document.getElementById('timelineChart'), {
+    type: 'line',
+    data: {
+      labels: timelineLabels,
+      datasets: [{
+        label: 'Kontostand (kumuliert)',
+        data: timelineData,
+        borderColor: '#29463B',
+        backgroundColor: 'rgba(41,70,59,0.08)',
+        fill: true,
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.15
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { maxTicksLimit: 8, color: '#6b6152' }, grid: { display: false } },
+        y: { ticks: { color: '#6b6152', callback: v => v.toLocaleString('de-DE') + ' €' }, grid: { color: '#DDD5C0' } }
+      }
+    }
+  });
+
+  if (monthlyChart) monthlyChart.destroy();
+  monthlyChart = new Chart(document.getElementById('monthlyChart'), {
+    type: 'bar',
+    data: {
+      labels: monthKeys.map(monthLabel),
+      datasets: [
+        {
+          label: 'Einnahmen',
+          data: monthKeys.map(k => Math.round(byMonth[k].income * 100) / 100),
+          backgroundColor: monthKeys.map(k => k === thisMonthKey ? '#639922' : '#3B6D11'),
+          borderRadius: 4
+        },
+        {
+          label: 'Ausgaben',
+          data: monthKeys.map(k => Math.round(Math.abs(byMonth[k].expense) * 100) / 100),
+          backgroundColor: monthKeys.map(k => k === thisMonthKey ? '#E24B4A' : '#A13D2C'),
+          borderRadius: 4
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#6b6152' } },
+        y: { ticks: { color: '#6b6152', callback: v => v.toLocaleString('de-DE') + ' €' }, grid: { color: '#DDD5C0' } }
+      }
+    }
+  });
+
+  const tbody = document.getElementById('monthTableBody');
+  tbody.innerHTML = '';
+  monthKeys.slice().reverse().forEach(k => {
+    const income = byMonth[k].income;
+    const expense = byMonth[k].expense;
+    const net = income + expense;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + monthLabel(k) + (k === thisMonthKey ? ' (aktuell)' : '') + '</td>' +
+      '<td>' + formatEUR(income) + '</td>' +
+      '<td>' + formatEUR(expense) + '</td>' +
+      '<td>' + formatEUR(net) + '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+document.getElementById('personFilter').addEventListener('change', render);
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => handleFiles(Array.from(e.target.files)));
+
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  handleFiles(Array.from(e.dataTransfer.files));
+});
+
+const pickFolderBtn = document.getElementById('pickFolderBtn');
+if (!window.showDirectoryPicker) {
+  document.getElementById('notSupported').style.display = 'block';
+  pickFolderBtn.disabled = true;
+  pickFolderBtn.style.opacity = '0.5';
+  pickFolderBtn.style.cursor = 'not-allowed';
+}
+pickFolderBtn.addEventListener('click', async () => {
+  try {
+    const rootHandle = await window.showDirectoryPicker();
+    document.getElementById('fileList').innerHTML = '';
+    transactions = [];
+    knownPersons = new Set();
+    await scanDirectory(rootHandle, 'Gemeinsam');
+    if (transactions.length === 0) {
+      document.getElementById('fileList').innerHTML = '<div>Keine CSV-Dateien im gewählten Ordner gefunden.</div>';
+    }
+    render();
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      document.getElementById('fileList').innerHTML = '<div>Ordner konnte nicht gelesen werden: ' + err.message + '</div>';
+    }
+  }
+});
+</script>
+
+</body>
+</html>
