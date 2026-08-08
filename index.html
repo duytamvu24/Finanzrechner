@@ -371,8 +371,10 @@ function addFileToList(name) {
 
 async function handleFiles(fileArray) {
   for (const file of fileArray) {
-    const rows = await parseCsvFile(file, 'Gemeinsam');
+    const label = file.name.replace(/\.csv$/i, '');
+    const rows = await parseCsvFile(file, label);
     transactions.push(...rows);
+    knownPersons.add(label);
     addFileToList(file.name);
   }
   render();
@@ -445,6 +447,7 @@ async function scanDirectory(dirHandle, personLabel) {
 
 function updatePersonFilterOptions() {
   const sel = document.getElementById('personFilter');
+  const previousValue = sel.value;
   sel.innerHTML = '<option value="__ALL__">Beide Personen (kombiniert)</option>';
   Array.from(knownPersons).sort().forEach(p => {
     const opt = document.createElement('option');
@@ -452,6 +455,9 @@ function updatePersonFilterOptions() {
     opt.textContent = p;
     sel.appendChild(opt);
   });
+  if (previousValue === '__ALL__' || knownPersons.has(previousValue)) {
+    sel.value = previousValue;
+  }
   document.getElementById('timelineFilterRow').style.display = knownPersons.size > 1 ? 'flex' : 'none';
 }
 
