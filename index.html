@@ -358,6 +358,7 @@ function parseCsvFile(file, person) {
             empfaenger = (row['Name'] || '').trim();
             kategorie = '';
             var typField = typRaw;
+            var txCode = (row['Transaktionscode'] || '').trim();
           } else {
             datum = parseGermanDate(row['Buchungstag']);
             if (!datum) return;
@@ -366,6 +367,7 @@ function parseCsvFile(file, person) {
             empfaenger = (row['Beguenstigter/Zahlungspflichtiger'] || '').trim();
             kategorie = (row['Kategorie'] || '').trim();
             var typField = '';
+            var txCode = '';
           }
           rows.push({
             datum: datum,
@@ -374,6 +376,7 @@ function parseCsvFile(file, person) {
             buchungstext: '',
             verwendungszweck: verwendungszweck,
             typRaw: typField,
+            txCode: txCode,
             empfaenger: empfaenger,
             kategorie: kategorie || 'Unkategorisiert',
             person: person
@@ -399,6 +402,8 @@ async function handleFiles(fileArray) {
     knownPersons.add(label);
     addFileToList(file.name + (result.unrecognized ? ' – Format nicht erkannt, übersprungen' : ''));
   }
+  const removed = dedupeTransactions();
+  if (removed > 0) addFileToList(removed + ' doppelte Buchung(en) automatisch entfernt');
   matchInternalTransfers();
   render();
 }
@@ -502,6 +507,24 @@ function renderPersonBreakdown() {
       '<td>' + formatEUR(income + expense) + '</td>';
     tbody.appendChild(tr);
   });
+}
+
+function dedupeTransactions() {
+  const seenCodes = new Set();
+  const seenKeys = new Set();
+  const before = transactions.length;
+  transactions = transactions.filter(t => {
+    if (t.txCode) {
+      if (seenCodes.has(t.txCode)) return false;
+      seenCodes.add(t.txCode);
+      return true;
+    }
+    const k = txKey(t);
+    if (seenKeys.has(k)) return false;
+    seenKeys.add(k);
+    return true;
+  });
+  return before - transactions.length;
 }
 
 function matchInternalTransfers() {
@@ -823,6 +846,8 @@ pickFolderBtn.addEventListener('click', async () => {
     labelsDirty = false;
     await loadLabelsFromDir(rootHandle);
     await scanDirectory(rootHandle, 'Gemeinsam');
+    const removed = dedupeTransactions();
+    if (removed > 0) addFileToList(removed + ' doppelte Buchung(en) automatisch entfernt');
     matchInternalTransfers();
     if (transactions.length === 0) {
       document.getElementById('fileList').innerHTML = '<div>Keine CSV-Dateien im gewählten Ordner gefunden.</div>';
