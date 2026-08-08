@@ -345,6 +345,7 @@ function parseCsvFile(file, person) {
           resolve({ rows: [], unrecognized: true });
           return;
         }
+        const quelleLabel = person + (isPaypal ? ' - PayPal' : ' - Bank');
         const rows = [];
         results.data.forEach(row => {
           let datum, betrag, verwendungszweck, empfaenger, kategorie;
@@ -379,7 +380,8 @@ function parseCsvFile(file, person) {
             txCode: txCode,
             empfaenger: empfaenger,
             kategorie: kategorie || 'Unkategorisiert',
-            person: person
+            person: person,
+            quelle: quelleLabel
           });
         });
         resolve({ rows: rows, unrecognized: false });
@@ -528,38 +530,15 @@ function dedupeTransactions() {
 }
 
 function matchInternalTransfers() {
-  transactions.forEach(t => { t.internal = false; t.transferNote = ''; });
-  const TOLERANCE_MS = 3 * 24 * 60 * 60 * 1000;
-
-  const bankSide = transactions.filter(t =>
-    !t.internal &&
-    (t.empfaenger.toLowerCase().includes('paypal europe') ||
-     t.verwendungszweck.toLowerCase().includes('paypal europe'))
-  );
-  const paypalSide = transactions.filter(t =>
-    !t.internal &&
-    (t.typRaw.toLowerCase().includes('bankgutschrift') ||
-     t.typRaw.toLowerCase().includes('auszahlung'))
-  );
-
-  bankSide.forEach(b => {
-    if (b.internal) return;
-    let best = null;
-    let bestDiff = Infinity;
-    paypalSide.forEach(p => {
-      if (p.internal) return;
-      const amountMatches = Math.abs(Math.abs(p.betrag) - Math.abs(b.betrag)) < 0.01;
-      const signOk = Math.sign(p.betrag) === -Math.sign(b.betrag);
-      if (!amountMatches || !signOk) return;
-      const diff = Math.abs(p.datum.getTime() - b.datum.getTime());
-      if (diff <= TOLERANCE_MS && diff < bestDiff) { best = p; bestDiff = diff; }
-    });
-    if (best) {
-      b.internal = true;
-      best.internal = true;
-      b.transferNote = 'Interner Transfer (mit PayPal-Buchung abgeglichen)';
-      best.transferNote = 'Interner Transfer (mit Bankbuchung abgeglichen)';
-    }
+  transactions.forEach(t => {
+    const isBankToPaypal = t.empfaenger.toLowerCase().includes('paypal europe') ||
+                           t.verwendungszweck.toLowerCase().includes('paypal europe');
+    const isPaypalFunding = t.typRaw && (
+      t.typRaw.toLowerCase().includes('bankgutschrift') ||
+      t.typRaw.toLowerCase().includes('auszahlung')
+    );
+    t.internal = isBankToPaypal || isPaypalFunding;
+    t.transferNote = t.internal ? 'Interner Transfer (Bank ↔ PayPal, Guthaben-Nachladung)' : '';
   });
 }
 
@@ -642,7 +621,7 @@ function renderCombinedOverview() {
       : '<select data-key="' + encodeURIComponent(key) + '">' + LABELS.map(l => '<option value="' + l + '"' + (l === current ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>';
     const cellFor = {
       datum: t.datum.toLocaleDateString('de-DE'),
-      quelle: t.person,
+      quelle: t.quelle,
       vonan: t.empfaenger || '–',
       zweck: t.verwendungszweck || '–',
       betrag: formatEUR(t.betrag),
