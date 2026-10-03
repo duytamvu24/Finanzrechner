@@ -175,7 +175,7 @@
       <span class="or-sep">oder</span>
       <div class="upload-zone" id="dropZone">
         <div>CSV-Dateien hierher ziehen</div>
-        <div class="hint">falls dein Browser keinen Ordner-Zugriff unterstützt · Sparkasse- oder PayPal-Export</div>
+        <div class="hint">falls dein Browser keinen Ordner-Zugriff unterstützt · Sparkasse-, PSD-Bank- oder PayPal-Export</div>
         <input type="file" id="fileInput" accept=".csv" multiple>
       </div>
     </div>
@@ -259,7 +259,7 @@
     <div class="filter-row">
       <label style="display:flex;align-items:center;gap:6px;">
         <input type="checkbox" id="onlyLabeledToggle">
-        Nur Buchungen mit vergebenem Label anzeigen
+        Nur Buchungen mit Label anzeigen (bestätigt oder Vorschlag)
       </label>
     </div>
     <div class="filter-row">
@@ -353,24 +353,45 @@ function formatEUR(n) {
   return sign + Math.abs(n).toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
 }
 
+const FORMAT_NAMES = { paypal: 'PayPal', psd: 'PSD Bank', sparkasse: 'Sparkasse' };
+
+// Reihenfolge wichtig: PSD vor Sparkasse prüfen, weil beide "Buchungstag" haben
+function detectFormat(fields) {
+  const has = (name) => fields.includes(name);
+  if (has('Transaktionscode') || has('Guthaben')) return 'paypal';
+  if (has('Name Zahlungsbeteiligter') || has('IBAN Auftragskonto') || has('Saldo nach Buchung')) return 'psd';
+  if (has('Beguenstigter/Zahlungspflichtiger') || has('Auftragskonto')) return 'sparkasse';
+  if (has('Buchungstag') && has('Betrag')) return 'sparkasse';
+  return null;
+}
+
+function fileListText(name, result) {
+  if (result.unrecognized) return name + ' – Format nicht erkannt, übersprungen';
+  return name + ' (' + FORMAT_NAMES[result.format] + ', ' + result.rows.length + ' Buchungen)';
+}
+
 function parseCsvFile(file, person) {
   return new Promise((resolve) => {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
       complete: (results) => {
-        const fields = results.meta.fields || [];
-        const isPaypal = fields.includes('Transaktionscode') || fields.includes('Guthaben');
-        const isSparkasse = fields.includes('Auftragskonto') || fields.includes('Buchungstag');
-        if (!isPaypal && !isSparkasse) {
-          resolve({ rows: [], unrecognized: true });
+        const fields = (results.meta.fields || []).map(f => (f || '').trim());
+        const format = detectFormat(fields);
+        if (!format) {
+          resolve({ rows: [], unrecognized: true, format: null });
           return;
         }
-        const quelleLabel = person + (isPaypal ? ' - PayPal' : ' - Bank');
+        const quelleLabel = person + ' - ' + FORMAT_NAMES[format];
         const rows = [];
-        results.data.forEach(row => {
-          let datum, betrag, verwendungszweck, empfaenger, kategorie;
-          if (isPaypal) {
+        results.data.forEach(rawRow => {
+          // Spaltennamen trimmen, falls die Bank Leerzeichen mitliefert
+          const row = {};
+          Object.keys(rawRow).forEach(k => { row[(k || '').trim()] = rawRow[k]; });
+
+          let datum, betrag, verwendungszweck, empfaenger, kategorie, buchungstext = '';
+          let typField = '', txCode = '';
+          if (format === 'paypal') {
             datum = parseGermanDate(row['Datum']);
             if (!datum) return;
             const nettoStr = row['Netto'];
@@ -379,23 +400,32 @@ function parseCsvFile(file, person) {
             verwendungszweck = (row['Hinweis'] || row['Betreff'] || typRaw || '').trim();
             empfaenger = (row['Name'] || '').trim();
             kategorie = '';
-            var typField = typRaw;
-            var txCode = (row['Transaktionscode'] || '').trim();
-          } else {
+            typField = typRaw;
+            txCode = (row['Transaktionscode'] || '').trim();
+          } else if (format === 'psd') {
+            // PSD Bank (Atruvia-Online-Banking, gleiches Format wie Volks-/Raiffeisenbanken)
             datum = parseGermanDate(row['Buchungstag']);
             if (!datum) return;
             betrag = parseGermanAmount(row['Betrag']);
+            buchungstext = (row['Buchungstext'] || '').trim();
+            verwendungszweck = (row['Verwendungszweck'] || buchungstext || '').trim();
+            empfaenger = (row['Name Zahlungsbeteiligter'] || '').trim();
+            kategorie = (row['Kategorie'] || '').trim();
+          } else {
+            // Sparkasse (CSV-CAMT)
+            datum = parseGermanDate(row['Buchungstag']);
+            if (!datum) return;
+            betrag = parseGermanAmount(row['Betrag']);
+            buchungstext = (row['Buchungstext'] || '').trim();
             verwendungszweck = (row['Verwendungszweck'] || '').trim();
             empfaenger = (row['Beguenstigter/Zahlungspflichtiger'] || '').trim();
             kategorie = (row['Kategorie'] || '').trim();
-            var typField = '';
-            var txCode = '';
           }
           rows.push({
             datum: datum,
             monthKey: monthKey(datum),
             betrag: betrag,
-            buchungstext: '',
+            buchungstext: buchungstext,
             verwendungszweck: verwendungszweck,
             typRaw: typField,
             txCode: txCode,
@@ -405,7 +435,7 @@ function parseCsvFile(file, person) {
             quelle: quelleLabel
           });
         });
-        resolve({ rows: rows, unrecognized: false });
+        resolve({ rows: rows, unrecognized: false, format: format });
       }
     });
   });
@@ -423,7 +453,7 @@ async function handleFiles(fileArray) {
     const result = await parseCsvFile(file, label);
     transactions.push(...result.rows);
     knownPersons.add(label);
-    addFileToList(file.name + (result.unrecognized ? ' – Format nicht erkannt, übersprungen' : ''));
+    addFileToList(fileListText(file.name, result));
   }
   const removed = dedupeTransactions();
   if (removed > 0) addFileToList(removed + ' doppelte Buchung(en) automatisch entfernt');
@@ -511,7 +541,7 @@ async function scanDirectory(dirHandle, personLabel) {
       const result = await parseCsvFile(file, personLabel);
       transactions.push(...result.rows);
       knownPersons.add(personLabel);
-      addFileToList((personLabel !== 'Gemeinsam' ? personLabel + ' / ' : '') + name + (result.unrecognized ? ' – Format nicht erkannt, übersprungen' : ''));
+      addFileToList(fileListText((personLabel !== 'Gemeinsam' ? personLabel + ' / ' : '') + name, result));
     } else if (handle.kind === 'directory') {
       await scanDirectory(handle, name);
     }
@@ -590,10 +620,11 @@ const AUTO_LABEL_RULES = {
   'Abos': ['drillisch', 'telefonica', 'telekom', 'vodafone', 'fitx', 'mcfit', 'netflix', 'spotify', 'disney+', 'amazon prime', 'sky deutschland', ' o2 '],
   'Transport': ['deutsche bahn', 'db vertrieb', 'tankstelle', 'shell', 'aral', ' esso', 'sixt', 'uber', 'taxi', 'bvg', 'vrr', 'mvv', 'tanken'],
   'Versicherungen': ['versicherung', 'allianz', 'huk-coburg', 'ergo', 'axa', 'techniker'],
-  'Gesundheit': ['apotheke', 'dm-drogerie', 'rossmann', 'arztpraxis', 'krankenhaus', 'orthopädie', 'ginko', 'physio'],
+  'Gesundheit': ['apotheke', 'dm-drogerie', 'dm drogerie', 'dm drogeriemarkt', 'rossmann', 'arztpraxis', 'krankenhaus', 'orthopädie', 'ginko', 'physio'],
   'Bargeld': ['geldautomat', 'bargeldauszahlung'],
   'Reisen': ['booking.com', 'airbnb', 'ryanair', 'lufthansa', 'hotel', 'getyourguide', 'klook'],
-  'Wohnung': ['miete', 'hausverwaltung', 'stadtwerke', 'düsseldorf', 'duesseldorf'],
+  // Nur Stadt/Stadtwerke, nicht der Ortsname allein: der steht bei jeder Kartenzahlung im Verwendungszweck
+  'Wohnung': ['miete', 'hausverwaltung', 'stadtwerke', 'stadt düsseldorf', 'stadt duesseldorf'],
   'Sparen': ['sparplan', 'tagesgeldkonto', 'investment', 'aktien'],
   'Freizeit/Shopping': ['steam', 'nintendo', 'bowling', 'kino']
 };
@@ -616,6 +647,7 @@ function autoSuggestLabel(t) {
   return null;
 }
 
+// Gilt überall gleich: manuell gesetztes Label > Vorschlag > Unkategorisiert
 function effectiveLabel(t) {
   return labelMap[txKey(t)] || autoSuggestLabel(t) || 'Unkategorisiert';
 }
@@ -674,7 +706,8 @@ const COMBINED_COLS = [
   { key: 'betrag', label: 'Betrag' },
   { key: 'label', label: 'Label' }
 ];
-let combinedVisibleCols = { datum: true, quelle: false, vonan: true, zweck: true, betrag: true, label: false };
+// Startwerte passend zu den Checkboxen im HTML
+let combinedVisibleCols = { datum: true, quelle: false, vonan: true, zweck: true, betrag: true, label: true };
 
 let hideInternal = false;
 let onlyLabeled = false;
@@ -700,18 +733,19 @@ function buildLabelFilterUI() {
 function renderCombinedOverview() {
   let list = hideInternal ? transactions.filter(t => !t.internal) : transactions.slice();
   if (onlyLabeled) {
-    list = list.filter(t => (labelMap[txKey(t)] || 'Unkategorisiert') !== 'Unkategorisiert');
+    list = list.filter(t => !t.internal && effectiveLabel(t) !== 'Unkategorisiert');
   }
   if (onlySuggested) {
     list = list.filter(t => !t.internal && !labelMap[txKey(t)] && !!autoSuggestLabel(t));
   }
   if (selectedLabels.size > 0) {
-    list = list.filter(t => selectedLabels.has(labelMap[txKey(t)] || 'Unkategorisiert'));
+    // gleiche Logik wie im Kuchendiagramm: Vorschläge zählen mit, interne Transfers nicht
+    list = list.filter(t => !t.internal && selectedLabels.has(effectiveLabel(t)));
   }
   if (searchQuery) {
     const q = searchQuery.toLowerCase();
     list = list.filter(t => {
-      const label = labelMap[txKey(t)] || autoSuggestLabel(t) || 'Unkategorisiert';
+      const label = t.internal ? 'Interner Transfer' : effectiveLabel(t);
       return (t.empfaenger || '').toLowerCase().includes(q) ||
              (t.verwendungszweck || '').toLowerCase().includes(q) ||
              (t.quelle || '').toLowerCase().includes(q) ||
@@ -754,7 +788,8 @@ function renderCombinedOverview() {
       datum: t.datum.toLocaleDateString('de-DE'),
       quelle: t.quelle,
       vonan: t.empfaenger || '–',
-      zweck: t.verwendungszweck || '–',
+      // Mehrfache Leerzeichen nur für die Anzeige zusammenziehen; der gespeicherte Wert bleibt unverändert, damit labels.csv weiter passt
+      zweck: (t.verwendungszweck || '').replace(/\s+/g, ' ').trim() || '–',
       betrag: formatEUR(t.betrag),
       label: labelCell
     };
