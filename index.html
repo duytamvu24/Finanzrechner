@@ -174,6 +174,9 @@
   .icon-btn{background:none;border:1px solid var(--paper-line);border-radius:4px;cursor:pointer;color:#6b6152;padding:2px 8px;}
   .icon-btn:hover{color:var(--stamp-red);border-color:var(--stamp-red);}
   .ghost-btn{background:transparent;color:var(--gold);border:1px solid var(--gold);}
+  .cat-color{width:22px;height:22px;padding:0;border:1px solid var(--paper-line);border-radius:4px;background:none;cursor:pointer;}
+  .cat-del{padding:0 6px;margin-left:auto;}
+  #categoryMsg{font-size:0.82rem;}
   @media (max-width:600px){ .rule-row{grid-template-columns:1fr;} }
 </style>
 </head>
@@ -373,6 +376,12 @@
   <div class="card" id="rulesCard">
     <h2>Regeln für Label-Vorschläge</h2>
     <p class="card-hint">Stichwörter werden in Von/An und Verwendungszweck gesucht, Groß- und Kleinschreibung ist egal. Die Labels werden von oben nach unten geprüft, der erste Treffer gewinnt. Gelernte Empfänger haben immer Vorrang vor Stichwörtern.</p>
+    <div class="filter-row" style="flex-wrap:wrap;">
+      <span>Neue Kategorie:</span>
+      <input type="text" id="newCategoryInput" maxlength="30" placeholder="z. B. Bildung" style="padding:0.4rem 0.6rem;border-radius:6px;border:1px solid var(--paper-line);background:var(--card-bg);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;">
+      <button class="save-btn" id="addCategoryBtn" style="padding:0.4rem 0.9rem;">Hinzufügen</button>
+      <span id="categoryMsg"></span>
+    </div>
     <div id="keywordRules"></div>
     <h3>Gelernte Empfänger</h3>
     <p class="card-hint" style="margin-top:0;">Entstehen automatisch, wenn du in der Tabelle ein Label setzt oder einen Vorschlag bestätigst.</p>
@@ -401,11 +410,24 @@ let rootDirHandle = null;
 let labelMap = {};
 let labelsDirty = false;
 
-const LABELS = [
+const DEFAULT_LABELS = [
   'Wohnung', 'Essen', 'Freizeit/Shopping', 'Abos', 'Reisen',
   'Versicherungen', 'Transport', 'Gehalt/Einkommen', 'Sparen',
   'Unkategorisiert', 'Gesundheit', 'Bargeld'
 ];
+let LABELS = DEFAULT_LABELS.slice();
+// Eigene Kategorien: Name → Farbe (gespeichert in kategorien.csv)
+let customCategories = {};
+const CUSTOM_PALETTE = ['#0f8b8d', '#c2185b', '#7cb342', '#5e35b1', '#f4511e', '#00897b', '#6d4c41', '#3949ab', '#d4a017', '#8e24aa'];
+
+function addCategory(name, color) {
+  if (LABELS.some(l => l.toLowerCase() === name.toLowerCase())) return false;
+  const used = Object.values(customCategories);
+  const pick = color || CUSTOM_PALETTE.find(c => !used.includes(c)) || CUSTOM_PALETTE[used.length % CUSTOM_PALETTE.length];
+  customCategories[name] = pick;
+  LABELS.push(name);
+  return true;
+}
 
 function txKey(t) {
   return t.datum.getTime() + '|' + t.betrag.toFixed(2) + '|' + t.verwendungszweck + '|' + t.empfaenger;
@@ -554,6 +576,18 @@ async function handleFiles(fileArray) {
 
 async function loadLabelsFromDir(dirHandle) {
   try {
+    const handle = await dirHandle.getFileHandle('kategorien.csv');
+    const text = await (await handle.getFile()).text();
+    const parsed = Papa.parse(text, { header: true, delimiter: ';', skipEmptyLines: true });
+    parsed.data.forEach(row => {
+      const name = (row['Kategorie'] || '').trim();
+      const color = (row['Farbe'] || '').trim();
+      if (name) addCategory(name, /^#[0-9a-f]{6}$/i.test(color) ? color : null);
+    });
+  } catch (err) {
+    // keine kategorien.csv vorhanden - nur Standard-Kategorien
+  }
+  try {
     const handle = await dirHandle.getFileHandle('labels.csv');
     const file = await handle.getFile();
     const text = await file.text();
@@ -567,7 +601,11 @@ async function loadLabelsFromDir(dirHandle) {
         verwendungszweck: (row['Verwendungszweck'] || '').trim(),
         empfaenger: (row['VonAn'] || '').trim()
       };
-      if (row['Label']) labelMap[txKey(fakeT)] = row['Label'].trim();
+      if (row['Label']) {
+        const l = row['Label'].trim();
+        if (!LABELS.includes(l)) addCategory(l);
+        labelMap[txKey(fakeT)] = l;
+      }
     });
   } catch (err) {
     // keine labels.csv vorhanden - kein Problem, einfach leer starten
@@ -623,6 +661,8 @@ async function saveLabels() {
   Object.keys(learnedRules).forEach(empf => {
     ruleLines.push([esc(empf), esc(learnedRules[empf])].join(';'));
   });
+  const catLines = ['"Kategorie";"Farbe"'];
+  Object.keys(customCategories).forEach(name => catLines.push([esc(name), esc(customCategories[name])].join(';')));
   const kwLines = ['"Label";"Stichwort"'];
   Object.keys(AUTO_LABEL_RULES).forEach(label => {
     AUTO_LABEL_RULES[label].forEach(kw => kwLines.push([esc(label), esc(kw)].join(';')));
@@ -638,20 +678,25 @@ async function saveLabels() {
     await rulesWritable.write(ruleLines.join('\n'));
     await rulesWritable.close();
 
+    const catHandle = await rootDirHandle.getFileHandle('kategorien.csv', { create: true });
+    const catWritable = await catHandle.createWritable();
+    await catWritable.write(catLines.join('\n'));
+    await catWritable.close();
+
     const kwHandle = await rootDirHandle.getFileHandle('stichwoerter.csv', { create: true });
     const kwWritable = await kwHandle.createWritable();
     await kwWritable.write(kwLines.join('\n'));
     await kwWritable.close();
 
     labelsDirty = false;
-    setSaveStatus('Gespeichert unter labels.csv, regeln.csv und stichwoerter.csv', true);
+    setSaveStatus('Gespeichert (Labels, Regeln, Stichwörter und Kategorien)', true);
   } catch (err) {
     setSaveStatus('Speichern fehlgeschlagen: ' + err.message, false);
   }
 }
 
 // Eigene Dateien der App, keine Kontoauszüge
-const APP_FILES = ['labels.csv', 'regeln.csv', 'stichwoerter.csv'];
+const APP_FILES = ['labels.csv', 'regeln.csv', 'stichwoerter.csv', 'kategorien.csv'];
 
 // .csv, .txt oder ganz ohne Endung (z. B. wenn beim Download die Endung verloren ging)
 function isCsvCandidate(name) {
@@ -873,7 +918,7 @@ function buildLabelFilterUI() {
   const container = document.getElementById('labelFilterChecks');
   container.innerHTML = LABELS.map(l =>
     '<label style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;">' +
-    '<input type="checkbox" class="labelFilterCheck" value="' + l + '"' + (selectedLabels.has(l) ? ' checked' : '') + '>' + l + '</label>'
+    '<input type="checkbox" class="labelFilterCheck" value="' + escapeHtml(l) + '"' + (selectedLabels.has(l) ? ' checked' : '') + '>' + escapeHtml(l) + '</label>'
   ).join('');
   container.querySelectorAll('.labelFilterCheck').forEach(cb => {
     cb.addEventListener('change', (e) => {
@@ -937,7 +982,7 @@ function renderCombinedOverview() {
     const empfAttr = (normEmp && normEmp !== '-' && normEmp !== '–') ? ' data-empf="' + encodeURIComponent(normEmp) + '"' : '';
     const selectHtml = '<select data-key="' + encodeURIComponent(key) + '"' + empfAttr +
         (isAuto ? ' style="border-style:dashed;" title="Automatisch vorgeschlagen – zum Bestätigen einfach auswählen oder Haken klicken"' : '') +
-        '>' + LABELS.map(l => '<option value="' + l + '"' + (l === current ? ' selected' : '') + '>' + l + (isAuto && l === current ? ' (Vorschlag)' : '') + '</option>').join('') + '</select>';
+        '>' + LABELS.map(l => '<option value="' + escapeHtml(l) + '"' + (l === current ? ' selected' : '') + '>' + escapeHtml(l) + (isAuto && l === current ? ' (Vorschlag)' : '') + '</option>').join('') + '</select>';
     const confirmBtn = isAuto
       ? '<button class="confirmLabelBtn" data-key="' + encodeURIComponent(key) + '" data-value="' + encodeURIComponent(current) + '"' + empfAttr + ' title="Vorschlag bestätigen" style="margin-left:6px;padding:2px 8px;border-radius:4px;border:1px solid var(--ledger-green);background:rgba(41,70,59,0.08);color:var(--ledger-green-dark);cursor:pointer;">✓</button>'
       : '';
@@ -1037,7 +1082,7 @@ const LABEL_COLORS = {
   'Reisen': '#1baf7a', 'Versicherungen': '#8C6A3F', 'Transport': '#eda100', 'Gehalt/Einkommen': '#008300',
   'Sparen': '#29463B', 'Unkategorisiert': '#b3aa98', 'Gesundheit': '#e34948', 'Bargeld': '#6b6152'
 };
-function labelColor(l) { return LABEL_COLORS[l] || '#A13D2C'; }
+function labelColor(l) { return LABEL_COLORS[l] || customCategories[l] || '#A13D2C'; }
 
 function markDirty() {
   labelsDirty = true;
@@ -1354,7 +1399,7 @@ function showKw(kw) {
 
 function renderRulesEditor() {
   const container = document.getElementById('keywordRules');
-  const order = Object.keys(AUTO_LABEL_RULES);
+  const order = Object.keys(AUTO_LABEL_RULES).filter(l => LABELS.includes(l));
   LABELS.forEach(l => { if (l !== 'Unkategorisiert' && !order.includes(l)) order.push(l); });
 
   container.innerHTML = order.map(label => {
@@ -1363,12 +1408,29 @@ function renderRulesEditor() {
       '<span class="chip">' + showKw(kw) +
       '<button title="Entfernen" data-label="' + encodeURIComponent(label) + '" data-kw="' + encodeURIComponent(kw) + '">×</button></span>'
     ).join('');
+    const isCustom = customCategories[label] !== undefined;
+    const labelHtml = isCustom
+      ? '<input type="color" class="cat-color" value="' + labelColor(label) + '" data-cat="' + encodeURIComponent(label) + '" title="Farbe ändern">' +
+        escapeHtml(label) +
+        '<button class="icon-btn cat-del" data-cat="' + encodeURIComponent(label) + '" title="Kategorie löschen">×</button>'
+      : '<span class="swatch" style="background:' + labelColor(label) + '"></span>' + escapeHtml(label);
     return '<div class="rule-row">' +
-      '<div class="rule-label"><span class="swatch" style="background:' + labelColor(label) + '"></span>' + escapeHtml(label) + '</div>' +
+      '<div class="rule-label">' + labelHtml + '</div>' +
       '<div class="chips">' + chips +
       '<input class="chip-add" data-label="' + encodeURIComponent(label) + '" placeholder="+ Stichwort, Enter"></div>' +
       '</div>';
   }).join('');
+
+  container.querySelectorAll('.cat-color').forEach(inp => {
+    inp.addEventListener('change', () => {
+      customCategories[decodeURIComponent(inp.getAttribute('data-cat'))] = inp.value;
+      markDirty();
+      refreshLabelViews();
+    });
+  });
+  container.querySelectorAll('.cat-del').forEach(btn => {
+    btn.addEventListener('click', () => deleteCategory(decodeURIComponent(btn.getAttribute('data-cat'))));
+  });
 
   container.querySelectorAll('.chip button').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1402,6 +1464,45 @@ function renderRulesEditor() {
   });
 
   renderLearnedRules();
+}
+
+function handleAddCategory() {
+  const input = document.getElementById('newCategoryInput');
+  const msg = document.getElementById('categoryMsg');
+  const name = input.value.trim().replace(/\s+/g, ' ');
+  if (!name) return;
+  if (!addCategory(name)) {
+    msg.textContent = 'Die Kategorie „' + name + '“ gibt es schon.';
+    return;
+  }
+  input.value = '';
+  msg.textContent = '„' + name + '“ hinzugefügt. Jetzt Stichwörter ergänzen oder Buchungen in der Tabelle zuordnen.';
+  markDirty();
+  buildLabelFilterUI();
+  renderRulesEditor();
+  refreshLabelViews();
+}
+
+function deleteCategory(name) {
+  const keys = Object.keys(labelMap).filter(k => labelMap[k] === name);
+  const rules = Object.keys(learnedRules).filter(k => learnedRules[k] === name);
+  let question = 'Kategorie „' + name + '“ löschen?';
+  if (keys.length || rules.length) {
+    question += '\n\n' + keys.length + ' Buchung(en) verlieren dabei ihr Label und ' + rules.length +
+                ' gelernte Empfänger-Regel(n) werden entfernt.';
+  }
+  if (!confirm(question)) return;
+  keys.forEach(k => delete labelMap[k]);
+  rules.forEach(k => delete learnedRules[k]);
+  delete AUTO_LABEL_RULES[name];
+  delete customCategories[name];
+  LABELS = LABELS.filter(l => l !== name);
+  selectedLabels.delete(name);
+  document.getElementById('categoryMsg').textContent = '';
+  markDirty();
+  buildLabelFilterUI();
+  renderRulesEditor();
+  refreshLabelViews();
 }
 
 function renderLearnedRules() {
@@ -1446,6 +1547,7 @@ function render() {
   if (transactions.length === 0) return;
 
   updatePersonFilterOptions();
+  buildLabelFilterUI();
   renderPersonBreakdown();
   renderCombinedOverview();
 
@@ -1611,6 +1713,8 @@ pickFolderBtn.addEventListener('click', async () => {
     labelMap = {};
     learnedRules = {};
     AUTO_LABEL_RULES = cloneRules(DEFAULT_AUTO_LABEL_RULES);
+    LABELS = DEFAULT_LABELS.slice();
+    customCategories = {};
     labelsDirty = false;
     await loadLabelsFromDir(rootHandle);
     await scanDirectory(rootHandle, 'Gemeinsam');
@@ -1645,6 +1749,8 @@ document.getElementById('rangeFilter').addEventListener('change', (e) => {
 document.getElementById('rangeFrom').addEventListener('change', render);
 document.getElementById('rangeTo').addEventListener('change', render);
 document.getElementById('showEndedToggle').addEventListener('change', renderRecurring);
+document.getElementById('addCategoryBtn').addEventListener('click', handleAddCategory);
+document.getElementById('newCategoryInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') handleAddCategory(); });
 document.getElementById('learnedSearch').addEventListener('input', renderLearnedRules);
 document.getElementById('saveRulesBtn').addEventListener('click', saveLabels);
 document.getElementById('resetKeywordsBtn').addEventListener('click', () => {
