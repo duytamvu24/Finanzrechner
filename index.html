@@ -152,6 +152,29 @@
   .save-btn:disabled{opacity:0.4;cursor:not-allowed;}
   .save-status{font-size:0.82rem;color:#6b6152;}
   .pie-wrap{position:relative;height:320px;max-width:420px;margin:0 auto;}
+  .card h3{font-family:'Fraunces', serif;font-weight:500;font-size:1.05rem;margin:1.4rem 0 0.4rem;color:var(--ledger-green-dark);}
+  .card-hint{font-size:0.85rem;color:#6b6152;margin:-0.5rem 0 1rem;max-width:70ch;}
+  .filter-card{padding:1rem 1.5rem;}
+  .filter-card .filter-row{margin-bottom:0;gap:1.4rem;}
+  .filter-group{display:flex;align-items:center;gap:0.5rem;}
+  input[type=date]{font-family:'IBM Plex Sans',sans-serif;padding:0.35rem 0.5rem;border-radius:4px;border:1px solid var(--paper-line);background:var(--card-bg);color:var(--ink);}
+  .recurring-sum{display:flex;gap:2rem;flex-wrap:wrap;font-size:0.9rem;color:#6b6152;margin-bottom:0.5rem;}
+  .recurring-sum strong{font-family:'IBM Plex Mono',monospace;font-weight:500;color:var(--ink);font-size:1.1rem;display:block;}
+  .rec-name{background:none;border:none;padding:0;font:inherit;color:var(--ledger-green-dark);text-decoration:underline dotted;cursor:pointer;text-align:left;}
+  .rec-ended td{opacity:0.5;}
+  .rec-note{color:var(--stamp-red);font-family:'IBM Plex Sans',sans-serif;font-size:0.78rem;}
+  .rule-row{display:grid;grid-template-columns:150px 1fr;gap:0.8rem;padding:0.6rem 0;border-bottom:1px solid var(--paper-line);align-items:start;}
+  .rule-row .rule-label{font-weight:500;padding-top:0.25rem;display:flex;align-items:center;gap:6px;}
+  .chips{display:flex;flex-wrap:wrap;gap:0.35rem;align-items:center;}
+  .chip{display:inline-flex;align-items:center;gap:2px;background:rgba(41,70,59,0.08);border:1px solid var(--paper-line);border-radius:12px;padding:1px 4px 1px 9px;font-family:'IBM Plex Mono',monospace;font-size:0.78rem;}
+  .chip button{background:none;border:none;cursor:pointer;color:#6b6152;font-size:0.95rem;line-height:1;padding:0 4px;}
+  .chip button:hover{color:var(--stamp-red);}
+  .chip-add{font-family:'IBM Plex Mono',monospace;font-size:0.78rem;padding:2px 8px;border-radius:12px;border:1px dashed var(--gold);background:transparent;color:var(--ink);width:150px;}
+  .learned-wrap{max-height:340px;overflow-y:auto;}
+  .icon-btn{background:none;border:1px solid var(--paper-line);border-radius:4px;cursor:pointer;color:#6b6152;padding:2px 8px;}
+  .icon-btn:hover{color:var(--stamp-red);border-color:var(--stamp-red);}
+  .ghost-btn{background:transparent;color:var(--gold);border:1px solid var(--gold);}
+  @media (max-width:600px){ .rule-row{grid-template-columns:1fr;} }
 </style>
 </head>
 <body>
@@ -185,6 +208,35 @@
     <div class="filelist" id="fileList"></div>
   </div>
 
+  <div class="card filter-card" id="filterCard" style="display:none;">
+    <div class="filter-row" style="flex-wrap:wrap;">
+      <span class="filter-group" id="personFilterWrap" style="display:none;">
+        <span>Person:</span>
+        <select id="personFilter">
+          <option value="__ALL__">Beide Personen (kombiniert)</option>
+        </select>
+      </span>
+      <span class="filter-group">
+        <span>Zeitraum:</span>
+        <select id="rangeFilter">
+          <option value="all">Gesamter Zeitraum</option>
+          <option value="thisMonth">Dieser Monat</option>
+          <option value="lastMonth">Letzter Monat</option>
+          <option value="3m">Letzte 3 Monate</option>
+          <option value="6m">Letzte 6 Monate</option>
+          <option value="12m">Letzte 12 Monate</option>
+          <option value="thisYear">Dieses Jahr</option>
+          <option value="lastYear">Letztes Jahr</option>
+          <option value="custom">Eigener Zeitraum</option>
+        </select>
+      </span>
+      <span class="filter-group" id="customRange" style="display:none;">
+        <input type="date" id="rangeFrom" aria-label="Von"> bis <input type="date" id="rangeTo" aria-label="Bis">
+      </span>
+      <span id="rangeInfo"></span>
+    </div>
+  </div>
+
   <div class="stats" id="statCards">
     <div class="stat"><div class="label">Einnahmen gesamt</div><div class="value pos" id="statIncome">—</div></div>
     <div class="stat"><div class="label">Ausgaben gesamt</div><div class="value neg" id="statExpense">—</div></div>
@@ -202,12 +254,6 @@
 
   <div class="card">
     <h2>Verlauf des Kontostands</h2>
-    <div class="filter-row" id="timelineFilterRow" style="display:none;">
-      <span>Anzeigen für:</span>
-      <select id="personFilter">
-        <option value="__ALL__">Beide Personen (kombiniert)</option>
-      </select>
-    </div>
     <div id="timelineEmpty" class="empty-msg">Noch keine Daten – wähle oben einen Ordner oder lade eine CSV-Datei hoch.</div>
     <div style="position:relative;height:280px;display:none;" id="timelineWrap">
       <canvas id="timelineChart" role="img" aria-label="Liniendiagramm des kumulierten Kontostands über die Zeit"></canvas>
@@ -237,6 +283,14 @@
   </div>
 
   <div class="card">
+    <h2>Ausgaben nach Label pro Monat</h2>
+    <div id="labelTrendEmpty" class="empty-msg">Noch keine Daten.</div>
+    <div style="position:relative;height:340px;display:none;" id="labelTrendWrap">
+      <canvas id="labelTrendChart" role="img" aria-label="Gestapeltes Balkendiagramm der Ausgaben je Label und Monat"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>Monatsübersicht</h2>
     <div id="tableEmpty" class="empty-msg">Noch keine Daten.</div>
     <table id="monthTable" style="display:none;">
@@ -246,7 +300,26 @@
   </div>
 
   <div class="card">
-    <h2>Gesamtübersicht: alle Konten kombiniert</h2>
+    <h2>Regelmäßige Zahlungen</h2>
+    <p class="card-hint">Erkannt werden Buchungen an denselben Empfänger bzw. vom selben Absender, die fast immer den gleichen Betrag haben und in festem Rhythmus kommen. Die Erkennung nutzt immer den gesamten Zeitraum der gewählten Person, unabhängig vom Zeitraum-Filter. Klick auf einen Namen zeigt die Buchungen unten in der Gesamtübersicht.</p>
+    <div id="recurringEmpty" class="empty-msg">Noch keine Daten.</div>
+    <div id="recurringContent" style="display:none;">
+      <div class="recurring-sum" id="recurringSum"></div>
+      <h3>Fixkosten</h3>
+      <div id="recurringOut"></div>
+      <h3>Regelmäßige Einnahmen</h3>
+      <div id="recurringIn"></div>
+      <div class="filter-row" style="margin-top:1rem;">
+        <label style="display:flex;align-items:center;gap:6px;">
+          <input type="checkbox" id="showEndedToggle">
+          Auch beendete Zahlungen anzeigen
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 id="combinedTitle">Gesamtübersicht: alle Konten kombiniert</h2>
     <div class="filter-row">
       <input type="text" id="searchInput" placeholder="Suche in Von/An, Verwendungszweck, Label…" style="flex:1;padding:0.5rem 0.7rem;border-radius:6px;border:1px solid var(--paper-line);background:var(--card-bg);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;font-size:0.9rem;">
     </div>
@@ -294,6 +367,23 @@
     <div class="save-row">
       <button class="save-btn" id="saveLabelsBtn" disabled>Labels speichern</button>
       <span class="save-status" id="saveStatus"></span>
+    </div>
+  </div>
+
+  <div class="card" id="rulesCard">
+    <h2>Regeln für Label-Vorschläge</h2>
+    <p class="card-hint">Stichwörter werden in Von/An und Verwendungszweck gesucht, Groß- und Kleinschreibung ist egal. Die Labels werden von oben nach unten geprüft, der erste Treffer gewinnt. Gelernte Empfänger haben immer Vorrang vor Stichwörtern.</p>
+    <div id="keywordRules"></div>
+    <h3>Gelernte Empfänger</h3>
+    <p class="card-hint" style="margin-top:0;">Entstehen automatisch, wenn du in der Tabelle ein Label setzt oder einen Vorschlag bestätigst.</p>
+    <div class="filter-row">
+      <input type="text" id="learnedSearch" placeholder="Empfänger suchen…" style="flex:1;max-width:320px;padding:0.4rem 0.6rem;border-radius:6px;border:1px solid var(--paper-line);background:var(--card-bg);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;">
+    </div>
+    <div class="learned-wrap" id="learnedRulesWrap"></div>
+    <div class="save-row">
+      <button class="save-btn" id="saveRulesBtn" disabled>Änderungen speichern</button>
+      <button class="save-btn ghost-btn" id="resetKeywordsBtn">Stichwörter auf Standard zurücksetzen</button>
+      <span class="save-status" id="rulesSaveStatus"></span>
     </div>
   </div>
 
@@ -367,7 +457,8 @@ function detectFormat(fields) {
 
 function fileListText(name, result) {
   if (result.unrecognized) return name + ' – Format nicht erkannt, übersprungen';
-  return name + ' (' + FORMAT_NAMES[result.format] + ', ' + result.rows.length + ' Buchungen)';
+  const hint = name.toLowerCase().endsWith('.csv') ? '' : ' – Hinweis: Datei hat keine .csv-Endung';
+  return name + ' (' + FORMAT_NAMES[result.format] + ', ' + result.rows.length + ' Buchungen)' + hint;
 }
 
 function parseCsvFile(file, person) {
@@ -452,7 +543,7 @@ async function handleFiles(fileArray) {
     const label = file.name.replace(/\.csv$/i, '');
     const result = await parseCsvFile(file, label);
     transactions.push(...result.rows);
-    knownPersons.add(label);
+    if (result.rows.length > 0) knownPersons.add(label);
     addFileToList(fileListText(file.name, result));
   }
   const removed = dedupeTransactions();
@@ -493,6 +584,23 @@ async function loadLabelsFromDir(dirHandle) {
   } catch (err) {
     // keine regeln.csv vorhanden - kein Problem
   }
+  try {
+    const handle = await dirHandle.getFileHandle('stichwoerter.csv');
+    const file = await handle.getFile();
+    const text = await file.text();
+    const parsed = Papa.parse(text, { header: true, delimiter: ';', skipEmptyLines: true });
+    const loaded = {};
+    parsed.data.forEach(row => {
+      const label = (row['Label'] || '').trim();
+      const kw = (row['Stichwort'] || '').toLowerCase();
+      if (!label || !kw.trim()) return;
+      if (!loaded[label]) loaded[label] = [];
+      if (!loaded[label].includes(kw)) loaded[label].push(kw);
+    });
+    if (Object.keys(loaded).length > 0) AUTO_LABEL_RULES = loaded;
+  } catch (err) {
+    // keine stichwoerter.csv vorhanden - Standard-Stichwörter verwenden
+  }
 }
 
 async function saveLabels() {
@@ -515,6 +623,10 @@ async function saveLabels() {
   Object.keys(learnedRules).forEach(empf => {
     ruleLines.push([esc(empf), esc(learnedRules[empf])].join(';'));
   });
+  const kwLines = ['"Label";"Stichwort"'];
+  Object.keys(AUTO_LABEL_RULES).forEach(label => {
+    AUTO_LABEL_RULES[label].forEach(kw => kwLines.push([esc(label), esc(kw)].join(';')));
+  });
   try {
     const handle = await rootDirHandle.getFileHandle('labels.csv', { create: true });
     const writable = await handle.createWritable();
@@ -526,25 +638,59 @@ async function saveLabels() {
     await rulesWritable.write(ruleLines.join('\n'));
     await rulesWritable.close();
 
+    const kwHandle = await rootDirHandle.getFileHandle('stichwoerter.csv', { create: true });
+    const kwWritable = await kwHandle.createWritable();
+    await kwWritable.write(kwLines.join('\n'));
+    await kwWritable.close();
+
     labelsDirty = false;
-    document.getElementById('saveStatus').textContent = 'Gespeichert unter labels.csv und regeln.csv';
-    document.getElementById('saveLabelsBtn').disabled = true;
+    setSaveStatus('Gespeichert unter labels.csv, regeln.csv und stichwoerter.csv', true);
   } catch (err) {
-    document.getElementById('saveStatus').textContent = 'Speichern fehlgeschlagen: ' + err.message;
+    setSaveStatus('Speichern fehlgeschlagen: ' + err.message, false);
   }
 }
 
-async function scanDirectory(dirHandle, personLabel) {
+// Eigene Dateien der App, keine Kontoauszüge
+const APP_FILES = ['labels.csv', 'regeln.csv', 'stichwoerter.csv'];
+
+// .csv, .txt oder ganz ohne Endung (z. B. wenn beim Download die Endung verloren ging)
+function isCsvCandidate(name) {
+  const lower = name.toLowerCase();
+  if (lower.startsWith('.') || lower === 'desktop.ini') return false;
+  return lower.endsWith('.csv') || lower.endsWith('.txt') || !lower.includes('.');
+}
+
+// Person = Name des ersten Unterordners (z. B. finanzen/thao → "thao").
+// Tiefere Ordner (z. B. thao/2026/) gehören weiter zu derselben Person.
+async function scanDirectory(dirHandle, personLabel, isRoot = true) {
+  const prefix = personLabel !== 'Gemeinsam' ? personLabel + ' / ' : '';
+  let csvCount = 0;
   for await (const [name, handle] of dirHandle.entries()) {
-    if (handle.kind === 'file' && name.toLowerCase().endsWith('.csv')) {
+    if (handle.kind === 'file' && isCsvCandidate(name)) {
+      if (isRoot && APP_FILES.includes(name.toLowerCase())) continue;
       const file = await handle.getFile();
       const result = await parseCsvFile(file, personLabel);
+      const isRealCsv = name.toLowerCase().endsWith('.csv');
+      // Dateien ohne .csv-Endung nur übernehmen, wenn der Inhalt als Kontoauszug erkannt wird
+      if (!isRealCsv && result.unrecognized) {
+        addFileToList(prefix + name + ' – keine CSV-Datei, übersprungen');
+        continue;
+      }
+      csvCount++;
       transactions.push(...result.rows);
-      knownPersons.add(personLabel);
-      addFileToList(fileListText((personLabel !== 'Gemeinsam' ? personLabel + ' / ' : '') + name, result));
+      if (result.rows.length > 0) knownPersons.add(personLabel);
+      addFileToList(fileListText(prefix + name, result));
+    } else if (handle.kind === 'file') {
+      // Andere Dateien sichtbar machen, damit man sieht, warum etwas fehlt
+      if (!name.startsWith('.') && name.toLowerCase() !== 'desktop.ini') {
+        addFileToList(prefix + name + ' – keine CSV-Datei, übersprungen');
+      }
     } else if (handle.kind === 'directory') {
-      await scanDirectory(handle, name);
+      await scanDirectory(handle, isRoot ? name : personLabel, false);
     }
+  }
+  if (!isRoot && csvCount === 0) {
+    addFileToList(prefix + '(Ordner enthält keine CSV-Dateien)');
   }
 }
 
@@ -561,7 +707,8 @@ function updatePersonFilterOptions() {
   if (previousValue === '__ALL__' || knownPersons.has(previousValue)) {
     sel.value = previousValue;
   }
-  document.getElementById('timelineFilterRow').style.display = knownPersons.size > 1 ? 'flex' : 'none';
+  document.getElementById('personFilterWrap').style.display = knownPersons.size > 1 ? 'flex' : 'none';
+  document.getElementById('filterCard').style.display = 'block';
 }
 
 function renderPersonBreakdown() {
@@ -571,7 +718,8 @@ function renderPersonBreakdown() {
   const tbody = document.getElementById('personTableBody');
   tbody.innerHTML = '';
   Array.from(knownPersons).sort().forEach(p => {
-    const tx = transactions.filter(t => t.person === p && !t.internal);
+    const range = getDateRange();
+    const tx = transactions.filter(t => t.person === p && !t.internal && inRange(t, range));
     const income = tx.filter(t => t.betrag > 0).reduce((s, t) => s + t.betrag, 0);
     const expense = tx.filter(t => t.betrag < 0).reduce((s, t) => s + t.betrag, 0);
     const tr = document.createElement('tr');
@@ -615,7 +763,7 @@ function matchInternalTransfers() {
   });
 }
 
-const AUTO_LABEL_RULES = {
+const DEFAULT_AUTO_LABEL_RULES = {
   'Essen': ['rewe', 'lidl', 'edeka', 'aldi', 'kaufland', 'penny', 'netto marken', 'mcdonald', 'burger king', 'kfc', 'lieferando', 'restaurant', 'bäckerei', 'subway'],
   'Abos': ['drillisch', 'telefonica', 'telekom', 'vodafone', 'fitx', 'mcfit', 'netflix', 'spotify', 'disney+', 'amazon prime', 'sky deutschland', ' o2 '],
   'Transport': ['deutsche bahn', 'db vertrieb', 'tankstelle', 'shell', 'aral', ' esso', 'sixt', 'uber', 'taxi', 'bvg', 'vrr', 'mvv', 'tanken'],
@@ -628,6 +776,13 @@ const AUTO_LABEL_RULES = {
   'Sparen': ['sparplan', 'tagesgeldkonto', 'investment', 'aktien'],
   'Freizeit/Shopping': ['steam', 'nintendo', 'bowling', 'kino']
 };
+
+function cloneRules(rules) {
+  const copy = {};
+  Object.keys(rules).forEach(l => { copy[l] = rules[l].slice(); });
+  return copy;
+}
+let AUTO_LABEL_RULES = cloneRules(DEFAULT_AUTO_LABEL_RULES);
 
 let learnedRules = {};
 
@@ -667,7 +822,6 @@ function renderPieChart(list) {
   }
   document.getElementById('pieEmpty').style.display = 'none';
   document.getElementById('pieWrap').style.display = 'block';
-  const cove = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948', '#8C6A3F', '#A13D2C', '#29463B', '#6b6152'];
   if (pieChart) pieChart.destroy();
   pieChart = new Chart(document.getElementById('pieChart'), {
     type: 'doughnut',
@@ -675,7 +829,7 @@ function renderPieChart(list) {
       labels: labels,
       datasets: [{
         data: labels.map(l => Math.round(expenseByLabel[l] * 100) / 100),
-        backgroundColor: labels.map((_, i) => cove[i % cove.length])
+        backgroundColor: labels.map(l => labelColor(l))
       }]
     },
     options: {
@@ -731,7 +885,13 @@ function buildLabelFilterUI() {
 }
 
 function renderCombinedOverview() {
-  let list = hideInternal ? transactions.filter(t => !t.internal) : transactions.slice();
+  // Gleiche Personenauswahl wie oben beim Kontostandsverlauf
+  const personVal = document.getElementById('personFilter').value;
+  const base = getFiltered();
+  document.getElementById('combinedTitle').textContent = personVal === '__ALL__'
+    ? 'Gesamtübersicht: alle Konten kombiniert'
+    : 'Gesamtübersicht: ' + personVal;
+  let list = hideInternal ? base.filter(t => !t.internal) : base.slice();
   if (onlyLabeled) {
     list = list.filter(t => !t.internal && effectiveLabel(t) !== 'Unkategorisiert');
   }
@@ -813,11 +973,8 @@ function renderCombinedOverview() {
         learnedRules[decodeURIComponent(empfAttr)] = value;
       }
 
-      labelsDirty = true;
-      document.getElementById('saveLabelsBtn').disabled = !rootDirHandle;
-      document.getElementById('saveStatus').textContent = rootDirHandle ? 'Ungespeicherte Änderungen' : 'Zum Speichern: über "Ordner auswählen" laden';
-      renderCombinedOverview();
-      renderPieChart(currentActiveTransactions());
+      markDirty();
+      refreshLabelViews();
     });
   });
 
@@ -829,11 +986,8 @@ function renderCombinedOverview() {
       const empfAttr = e.target.getAttribute('data-empf');
       if (empfAttr) learnedRules[decodeURIComponent(empfAttr)] = value;
 
-      labelsDirty = true;
-      document.getElementById('saveLabelsBtn').disabled = !rootDirHandle;
-      document.getElementById('saveStatus').textContent = rootDirHandle ? 'Ungespeicherte Änderungen' : 'Zum Speichern: über "Ordner auswählen" laden';
-      renderCombinedOverview();
-      renderPieChart(currentActiveTransactions());
+      markDirty();
+      refreshLabelViews();
     });
   });
 }
@@ -873,6 +1027,421 @@ document.querySelectorAll('.colToggle').forEach(cb => {
   });
 });
 
+// ---------- Hilfsfunktionen ----------
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+const LABEL_COLORS = {
+  'Wohnung': '#2a78d6', 'Essen': '#eb6834', 'Freizeit/Shopping': '#e87ba4', 'Abos': '#4a3aa7',
+  'Reisen': '#1baf7a', 'Versicherungen': '#8C6A3F', 'Transport': '#eda100', 'Gehalt/Einkommen': '#008300',
+  'Sparen': '#29463B', 'Unkategorisiert': '#b3aa98', 'Gesundheit': '#e34948', 'Bargeld': '#6b6152'
+};
+function labelColor(l) { return LABEL_COLORS[l] || '#A13D2C'; }
+
+function markDirty() {
+  labelsDirty = true;
+  const msg = rootDirHandle ? 'Ungespeicherte Änderungen' : 'Zum Speichern: über "Ordner auswählen" laden';
+  ['saveLabelsBtn', 'saveRulesBtn'].forEach(id => { document.getElementById(id).disabled = !rootDirHandle; });
+  ['saveStatus', 'rulesSaveStatus'].forEach(id => { document.getElementById(id).textContent = msg; });
+}
+
+function setSaveStatus(msg, done) {
+  ['saveStatus', 'rulesSaveStatus'].forEach(id => { document.getElementById(id).textContent = msg; });
+  if (done) ['saveLabelsBtn', 'saveRulesBtn'].forEach(id => { document.getElementById(id).disabled = true; });
+}
+
+// Alles neu zeichnen, was von Labels abhängt
+function refreshLabelViews() {
+  renderCombinedOverview();
+  const active = currentActiveTransactions();
+  renderPieChart(active);
+  renderLabelTrend(active);
+  renderRecurring();
+}
+
+// ---------- Filter: Person und Zeitraum ----------
+function getPersonFiltered() {
+  const p = document.getElementById('personFilter').value;
+  return p === '__ALL__' ? transactions : transactions.filter(t => t.person === p);
+}
+
+function parseInputDate(v, endOfDay) {
+  if (!v) return null;
+  const [y, m, d] = v.split('-').map(Number);
+  return endOfDay ? new Date(y, m - 1, d, 23, 59, 59, 999) : new Date(y, m - 1, d);
+}
+
+function toInputDate(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function getDateRange() {
+  const v = document.getElementById('rangeFilter').value;
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  const endToday = new Date(y, m, now.getDate(), 23, 59, 59, 999);
+  switch (v) {
+    case 'thisMonth': return { from: new Date(y, m, 1), to: new Date(y, m + 1, 0, 23, 59, 59, 999) };
+    case 'lastMonth': return { from: new Date(y, m - 1, 1), to: new Date(y, m, 0, 23, 59, 59, 999) };
+    case '3m': return { from: new Date(y, m - 2, 1), to: endToday };
+    case '6m': return { from: new Date(y, m - 5, 1), to: endToday };
+    case '12m': return { from: new Date(y, m - 11, 1), to: endToday };
+    case 'thisYear': return { from: new Date(y, 0, 1), to: new Date(y, 11, 31, 23, 59, 59, 999) };
+    case 'lastYear': return { from: new Date(y - 1, 0, 1), to: new Date(y - 1, 11, 31, 23, 59, 59, 999) };
+    case 'custom': {
+      const from = parseInputDate(document.getElementById('rangeFrom').value, false);
+      const to = parseInputDate(document.getElementById('rangeTo').value, true);
+      if (!from && !to) return null;
+      return { from: from || new Date(1900, 0, 1), to: to || new Date(2999, 0, 1) };
+    }
+    default: return null;
+  }
+}
+
+function inRange(t, range) {
+  return !range || (t.datum >= range.from && t.datum <= range.to);
+}
+
+function getFiltered() {
+  const range = getDateRange();
+  return getPersonFiltered().filter(t => inRange(t, range));
+}
+
+function renderRangeInfo(active) {
+  const el = document.getElementById('rangeInfo');
+  const range = getDateRange();
+  if (!range) { el.textContent = ''; return; }
+  el.textContent = active.length === 0
+    ? 'Keine Buchungen in diesem Zeitraum'
+    : active.length + ' Buchungen';
+}
+
+// ---------- Ausgaben nach Label pro Monat ----------
+let labelTrendChart = null;
+
+function renderLabelTrend(list) {
+  const expenses = list.filter(t => t.betrag < 0);
+  if (expenses.length === 0) {
+    document.getElementById('labelTrendEmpty').style.display = 'block';
+    document.getElementById('labelTrendWrap').style.display = 'none';
+    if (labelTrendChart) { labelTrendChart.destroy(); labelTrendChart = null; }
+    return;
+  }
+  document.getElementById('labelTrendEmpty').style.display = 'none';
+  document.getElementById('labelTrendWrap').style.display = 'block';
+
+  const byLabel = {};
+  const totals = {};
+  const monthSet = new Set();
+  expenses.forEach(t => {
+    const l = effectiveLabel(t);
+    monthSet.add(t.monthKey);
+    if (!byLabel[l]) byLabel[l] = {};
+    byLabel[l][t.monthKey] = (byLabel[l][t.monthKey] || 0) + Math.abs(t.betrag);
+    totals[l] = (totals[l] || 0) + Math.abs(t.betrag);
+  });
+  const months = Array.from(monthSet).sort();
+  // Größte Labels unten im Stapel
+  const labels = Object.keys(byLabel).sort((a, b) => totals[b] - totals[a]);
+
+  if (labelTrendChart) labelTrendChart.destroy();
+  labelTrendChart = new Chart(document.getElementById('labelTrendChart'), {
+    type: 'bar',
+    data: {
+      labels: months.map(monthLabel),
+      datasets: labels.map(l => ({
+        label: l,
+        data: months.map(mk => Math.round((byLabel[l][mk] || 0) * 100) / 100),
+        backgroundColor: labelColor(l),
+        stack: 'ausgaben'
+      }))
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#6b6152', boxWidth: 11, font: { size: 11 } } },
+        tooltip: {
+          filter: item => item.raw > 0,
+          callbacks: {
+            label: item => item.dataset.label + ': ' + formatEUR(item.raw),
+            footer: items => 'Summe: ' + formatEUR(items.reduce((s, i) => s + i.raw, 0))
+          }
+        }
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { color: '#6b6152' } },
+        y: { stacked: true, ticks: { color: '#6b6152', callback: v => v.toLocaleString('de-DE') + ' €' }, grid: { color: '#DDD5C0' } }
+      }
+    }
+  });
+}
+
+// ---------- Regelmäßige Zahlungen ----------
+const RHYTHMS = [
+  { name: 'monatlich', min: 25, max: 35, perMonth: 1, minCount: 3 },
+  { name: 'alle 2 Monate', min: 55, max: 66, perMonth: 1 / 2, minCount: 3 },
+  { name: 'vierteljährlich', min: 80, max: 100, perMonth: 1 / 3, minCount: 3 },
+  { name: 'halbjährlich', min: 170, max: 195, perMonth: 1 / 6, minCount: 2 },
+  { name: 'jährlich', min: 350, max: 380, perMonth: 1 / 12, minCount: 2 }
+];
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function median(arr) {
+  const a = arr.slice().sort((x, y) => x - y);
+  const mid = Math.floor(a.length / 2);
+  return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
+}
+
+// Namensvarianten zusammenführen: "Firma A + B GbR" und "Firma A . B GbR Mietkonten",
+// "00136 McDonalds" und "00478 McDonalds" → gleicher Schlüssel (erste drei Wörter ohne Zahlen/Satzzeichen)
+function payeeKey(name) {
+  return normalizeEmpfaenger(name)
+    .replace(/[^a-z0-9äöüß]+/g, ' ')
+    .split(' ')
+    .filter(w => w && !/^\d+$/.test(w))
+    .slice(0, 3)
+    .join(' ');
+}
+
+function detectRecurring(list) {
+  if (list.length === 0) return [];
+  const lastDataDate = list.reduce((mx, t) => t.datum > mx ? t.datum : mx, list[0].datum);
+  const groups = {};
+  list.forEach(t => {
+    if (t.internal || t.betrag === 0) return;
+    const emp = payeeKey(t.empfaenger);
+    if (!emp) return;
+    const k = t.person + '|' + (t.betrag < 0 ? 'out' : 'in') + '|' + emp;
+    (groups[k] = groups[k] || []).push(t);
+  });
+
+  const results = [];
+  Object.keys(groups).forEach(k => {
+    const txs = groups[k].slice().sort((a, b) => a.datum - b.datum);
+    if (txs.length < 2) return;
+    const tol = (a) => Math.max(1, a * 0.05);
+
+    // Den Betrag finden, der am häufigsten (mit kleiner Toleranz) vorkommt
+    let best = [];
+    const uniqueAmounts = Array.from(new Set(txs.map(t => Math.abs(t.betrag))));
+    uniqueAmounts.forEach(a => {
+      const matches = txs.filter(t => Math.abs(Math.abs(t.betrag) - a) <= tol(a));
+      if (matches.length > best.length) best = matches;
+    });
+    if (best.length < 2) return;
+    // "Meistens dieselbe Summe": im Zeitraum dieser Zahlungen macht der feste Betrag
+    // mindestens die Hälfte aller Buchungen an diesen Empfänger aus
+    const inSpan = txs.filter(t => t.datum >= best[0].datum && t.datum <= best[best.length - 1].datum).length;
+    if (best.length / inSpan < 0.5) return;
+    // Höchstens ca. eine Buchung pro Monat (sonst eher Einkäufe als Fixkosten)
+    const months = new Set(best.map(t => t.monthKey));
+    if (best.length / months.size > 1.3) return;
+
+    const gaps = [];
+    for (let i = 1; i < best.length; i++) gaps.push((best[i].datum - best[i - 1].datum) / DAY_MS);
+    const medGap = median(gaps);
+    const rhythm = RHYTHMS.find(r => medGap >= r.min && medGap <= r.max);
+    if (!rhythm || best.length < rhythm.minCount) return;
+    const regular = gaps.filter(g => g >= medGap * 0.6 && g <= medGap * 1.4).length / gaps.length;
+    if (regular < 0.7) return;
+
+    const typical = median(best.map(t => Math.abs(t.betrag)));
+    // Nur zwei gleiche Kleinbeträge im Jahresabstand sind meist Zufall, kein Abo
+    if (best.length === 2 && typical < 20) return;
+    let last = best[best.length - 1];
+    let current = typical;
+    let count = best.length;
+    let note = '';
+
+    // Neuere Buchungen mit leicht anderem Betrag: Preisänderung, die Zahlung läuft weiter
+    const newer = txs.filter(t => t.datum > last.datum);
+    if (newer.length > 0) {
+      const similar = newer.filter(t => Math.abs(Math.abs(t.betrag) - typical) <= typical * 0.35);
+      // Überwiegend ähnliche Beträge danach: gleiche Zahlung mit neuem Preis (einzelne Ausreißer wie Nachzahlungen ignorieren)
+      if (similar.length > 0 && similar.length >= newer.length / 2) {
+        last = similar[similar.length - 1];
+        current = Math.abs(last.betrag);
+        count += similar.length;
+        const firstChange = similar.find(t => Math.abs(Math.abs(t.betrag) - typical) > tol(typical));
+        if (firstChange && Math.abs(current - typical) > 0.009) {
+          note = 'Betrag geändert: ' + formatEUR(typical) + ' → ' + formatEUR(current) +
+                 ' seit ' + firstChange.datum.toLocaleDateString('de-DE');
+        }
+      } else {
+        const n = newer[newer.length - 1];
+        note = 'Zuletzt abweichend: ' + formatEUR(Math.abs(n.betrag)) + ' am ' + n.datum.toLocaleDateString('de-DE');
+      }
+    }
+    const daysSinceLast = (lastDataDate - last.datum) / DAY_MS;
+    const active = daysSinceLast <= medGap * 1.5 + 5;
+
+    results.push({
+      person: last.person,
+      direction: last.betrag < 0 ? 'out' : 'in',
+      name: last.empfaenger,
+      label: effectiveLabel(last),
+      rhythm: rhythm.name,
+      typical: current,
+      perMonth: current * rhythm.perMonth,
+      lastDate: last.datum,
+      count: count,
+      active: active,
+      note: note
+    });
+  });
+  return results.sort((a, b) => b.perMonth - a.perMonth);
+}
+
+function recurringTable(rows, showPerson) {
+  if (rows.length === 0) return '<div class="empty-msg">Nichts erkannt.</div>';
+  const head = '<tr><th>' + (showPerson ? 'Person / ' : '') + 'Von / An</th><th>Label</th><th>Rhythmus</th><th>Betrag</th><th>Pro Monat</th><th>Zuletzt</th></tr>';
+  const body = rows.map(r =>
+    '<tr' + (r.active ? '' : ' class="rec-ended"') + '>' +
+    '<td>' + (showPerson ? escapeHtml(r.person) + ' / ' : '') +
+      '<button class="rec-name" data-name="' + encodeURIComponent(r.name) + '">' + escapeHtml(r.name) + '</button>' +
+      (r.active ? '' : ' <span class="rec-note">(beendet?)</span>') +
+      (r.note ? '<br><span class="rec-note">' + escapeHtml(r.note) + '</span>' : '') + '</td>' +
+    '<td>' + escapeHtml(r.label) + '</td>' +
+    '<td>' + r.rhythm + ' (' + r.count + '×)</td>' +
+    '<td>' + formatEUR(r.typical) + '</td>' +
+    '<td>' + formatEUR(r.perMonth) + '</td>' +
+    '<td>' + r.lastDate.toLocaleDateString('de-DE') + '</td></tr>'
+  ).join('');
+  return '<div class="tx-table-wrap"><table><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>';
+}
+
+function renderRecurring() {
+  const all = detectRecurring(getPersonFiltered());
+  if (transactions.length === 0) return;
+  document.getElementById('recurringEmpty').style.display = 'none';
+  document.getElementById('recurringContent').style.display = 'block';
+
+  const showEnded = document.getElementById('showEndedToggle').checked;
+  const visible = all.filter(r => showEnded || r.active);
+  const out = visible.filter(r => r.direction === 'out');
+  const inc = visible.filter(r => r.direction === 'in');
+  const showPerson = document.getElementById('personFilter').value === '__ALL__' && knownPersons.size > 1;
+
+  const sumOut = all.filter(r => r.active && r.direction === 'out').reduce((s, r) => s + r.perMonth, 0);
+  const sumIn = all.filter(r => r.active && r.direction === 'in').reduce((s, r) => s + r.perMonth, 0);
+  document.getElementById('recurringSum').innerHTML =
+    '<div>Fixkosten pro Monat<strong>' + formatEUR(-sumOut) + '</strong></div>' +
+    '<div>Regelmäßige Einnahmen pro Monat<strong>' + formatEUR(sumIn) + '</strong></div>' +
+    '<div>Bleibt pro Monat<strong>' + formatEUR(sumIn - sumOut) + '</strong></div>';
+  document.getElementById('recurringOut').innerHTML = recurringTable(out, showPerson);
+  document.getElementById('recurringIn').innerHTML = recurringTable(inc, showPerson);
+
+  document.querySelectorAll('#recurringContent .rec-name').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const name = decodeURIComponent(btn.getAttribute('data-name'));
+      const input = document.getElementById('searchInput');
+      input.value = name;
+      searchQuery = name;
+      renderCombinedOverview();
+      document.getElementById('combinedTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+}
+
+// ---------- Regel-Editor ----------
+function showKw(kw) {
+  // Leerzeichen am Rand sichtbar machen (z. B. " o2 ")
+  return escapeHtml(kw).replace(/^ +| +$/g, m => '␣'.repeat(m.length));
+}
+
+function renderRulesEditor() {
+  const container = document.getElementById('keywordRules');
+  const order = Object.keys(AUTO_LABEL_RULES);
+  LABELS.forEach(l => { if (l !== 'Unkategorisiert' && !order.includes(l)) order.push(l); });
+
+  container.innerHTML = order.map(label => {
+    const kws = AUTO_LABEL_RULES[label] || [];
+    const chips = kws.map(kw =>
+      '<span class="chip">' + showKw(kw) +
+      '<button title="Entfernen" data-label="' + encodeURIComponent(label) + '" data-kw="' + encodeURIComponent(kw) + '">×</button></span>'
+    ).join('');
+    return '<div class="rule-row">' +
+      '<div class="rule-label"><span class="swatch" style="background:' + labelColor(label) + '"></span>' + escapeHtml(label) + '</div>' +
+      '<div class="chips">' + chips +
+      '<input class="chip-add" data-label="' + encodeURIComponent(label) + '" placeholder="+ Stichwort, Enter"></div>' +
+      '</div>';
+  }).join('');
+
+  container.querySelectorAll('.chip button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const label = decodeURIComponent(btn.getAttribute('data-label'));
+      const kw = decodeURIComponent(btn.getAttribute('data-kw'));
+      AUTO_LABEL_RULES[label] = (AUTO_LABEL_RULES[label] || []).filter(k => k !== kw);
+      markDirty();
+      renderRulesEditor();
+      refreshLabelViews();
+    });
+  });
+
+  container.querySelectorAll('.chip-add').forEach(input => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      const label = decodeURIComponent(input.getAttribute('data-label'));
+      const kw = input.value.trim().toLowerCase();
+      if (!kw) return;
+      // Stichwort aus anderen Labels entfernen, damit es eindeutig bleibt
+      Object.keys(AUTO_LABEL_RULES).forEach(l => {
+        AUTO_LABEL_RULES[l] = AUTO_LABEL_RULES[l].filter(k => k.trim() !== kw);
+      });
+      if (!AUTO_LABEL_RULES[label]) AUTO_LABEL_RULES[label] = [];
+      AUTO_LABEL_RULES[label].push(kw);
+      markDirty();
+      renderRulesEditor();
+      refreshLabelViews();
+      const again = document.querySelector('.chip-add[data-label="' + encodeURIComponent(label) + '"]');
+      if (again) again.focus();
+    });
+  });
+
+  renderLearnedRules();
+}
+
+function renderLearnedRules() {
+  const wrap = document.getElementById('learnedRulesWrap');
+  const q = document.getElementById('learnedSearch').value.trim().toLowerCase();
+  const keys = Object.keys(learnedRules).filter(k => !q || k.includes(q)).sort();
+  if (Object.keys(learnedRules).length === 0) {
+    wrap.innerHTML = '<div class="empty-msg">Noch keine gelernten Empfänger.</div>';
+    return;
+  }
+  if (keys.length === 0) {
+    wrap.innerHTML = '<div class="empty-msg">Kein Empfänger passt zur Suche.</div>';
+    return;
+  }
+  wrap.innerHTML = '<table><thead><tr><th>Empfänger</th><th>Label</th><th></th></tr></thead><tbody>' +
+    keys.map(k =>
+      '<tr><td>' + escapeHtml(k) + '</td>' +
+      '<td><select data-empf="' + encodeURIComponent(k) + '">' +
+        LABELS.map(l => '<option value="' + escapeHtml(l) + '"' + (l === learnedRules[k] ? ' selected' : '') + '>' + escapeHtml(l) + '</option>').join('') +
+      '</select></td>' +
+      '<td><button class="icon-btn" title="Regel löschen" data-del="' + encodeURIComponent(k) + '">×</button></td></tr>'
+    ).join('') + '</tbody></table>';
+
+  wrap.querySelectorAll('select').forEach(sel => {
+    sel.addEventListener('change', () => {
+      learnedRules[decodeURIComponent(sel.getAttribute('data-empf'))] = sel.value;
+      markDirty();
+      refreshLabelViews();
+    });
+  });
+  wrap.querySelectorAll('[data-del]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      delete learnedRules[decodeURIComponent(btn.getAttribute('data-del'))];
+      markDirty();
+      renderLearnedRules();
+      refreshLabelViews();
+    });
+  });
+}
+
 function render() {
   if (transactions.length === 0) return;
 
@@ -880,13 +1449,15 @@ function render() {
   renderPersonBreakdown();
   renderCombinedOverview();
 
-  const filterVal = document.getElementById('personFilter').value;
-  const activeAll = filterVal === '__ALL__' ? transactions : transactions.filter(t => t.person === filterVal);
-  const active = activeAll.filter(t => !t.internal);
+  const active = getFiltered().filter(t => !t.internal);
 
   active.sort((a, b) => a.datum - b.datum);
   currentActiveTransactions = () => active;
+  renderRangeInfo(active);
   renderPieChart(active);
+  renderLabelTrend(active);
+  renderRecurring();
+  renderRulesEditor();
 
   const totalIncome = active.filter(t => t.betrag > 0).reduce((s, t) => s + t.betrag, 0);
   const totalExpense = active.filter(t => t.betrag < 0).reduce((s, t) => s + t.betrag, 0);
@@ -900,7 +1471,8 @@ function render() {
 
   const now = new Date();
   const thisMonthKey = monthKey(now);
-  const thisMonthTx = active.filter(t => t.monthKey === thisMonthKey);
+  // "Dieser Monat" bleibt immer der aktuelle Kalendermonat, unabhängig vom Zeitraum-Filter
+  const thisMonthTx = getPersonFiltered().filter(t => !t.internal && t.monthKey === thisMonthKey);
   const thisMonthNet = thisMonthTx.reduce((s, t) => s + t.betrag, 0);
   const thisMonthEl = document.getElementById('statThisMonth');
   thisMonthEl.textContent = formatEUR(thisMonthNet);
@@ -1038,6 +1610,7 @@ pickFolderBtn.addEventListener('click', async () => {
     knownPersons = new Set();
     labelMap = {};
     learnedRules = {};
+    AUTO_LABEL_RULES = cloneRules(DEFAULT_AUTO_LABEL_RULES);
     labelsDirty = false;
     await loadLabelsFromDir(rootHandle);
     await scanDirectory(rootHandle, 'Gemeinsam');
@@ -1047,7 +1620,7 @@ pickFolderBtn.addEventListener('click', async () => {
     if (transactions.length === 0) {
       document.getElementById('fileList').innerHTML = '<div>Keine CSV-Dateien im gewählten Ordner gefunden.</div>';
     }
-    document.getElementById('saveStatus').textContent = '';
+    setSaveStatus('', true);
     render();
   } catch (err) {
     if (err.name !== 'AbortError') {
@@ -1055,6 +1628,33 @@ pickFolderBtn.addEventListener('click', async () => {
     }
   }
 });
+
+document.getElementById('rangeFilter').addEventListener('change', (e) => {
+  const custom = e.target.value === 'custom';
+  document.getElementById('customRange').style.display = custom ? 'flex' : 'none';
+  if (custom && transactions.length > 0) {
+    // Mit dem Zeitraum der vorhandenen Daten vorbelegen
+    const dates = getPersonFiltered().map(t => t.datum.getTime());
+    if (dates.length > 0) {
+      if (!document.getElementById('rangeFrom').value) document.getElementById('rangeFrom').value = toInputDate(new Date(Math.min(...dates)));
+      if (!document.getElementById('rangeTo').value) document.getElementById('rangeTo').value = toInputDate(new Date(Math.max(...dates)));
+    }
+  }
+  render();
+});
+document.getElementById('rangeFrom').addEventListener('change', render);
+document.getElementById('rangeTo').addEventListener('change', render);
+document.getElementById('showEndedToggle').addEventListener('change', renderRecurring);
+document.getElementById('learnedSearch').addEventListener('input', renderLearnedRules);
+document.getElementById('saveRulesBtn').addEventListener('click', saveLabels);
+document.getElementById('resetKeywordsBtn').addEventListener('click', () => {
+  if (!confirm('Alle Stichwörter auf den Standard zurücksetzen? Gelernte Empfänger bleiben erhalten.')) return;
+  AUTO_LABEL_RULES = cloneRules(DEFAULT_AUTO_LABEL_RULES);
+  markDirty();
+  renderRulesEditor();
+  refreshLabelViews();
+});
+renderRulesEditor();
 
 document.getElementById('saveLabelsBtn').addEventListener('click', saveLabels);
 </script>
