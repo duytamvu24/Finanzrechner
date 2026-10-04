@@ -16,7 +16,35 @@
     --stamp-red:#A13D2C;
     --gold:#8C6A3F;
     --card-bg:#F7F3E8;
+    --muted:var(--muted);
+    --grid:#DDD5C0;
+    --header-text:#F2EEE0;
+    --income:#3B6D11;
   }
+  body.no-lines{background-image:none;}
+  .header-right{display:flex;align-items:center;gap:1.2rem;}
+  .gear-btn{background:transparent;border:1px solid color-mix(in srgb, var(--header-text) 45%, transparent);color:var(--header-text);border-radius:6px;padding:0.5rem 0.9rem;font-family:'IBM Plex Sans',sans-serif;font-size:0.9rem;cursor:pointer;}
+  .gear-btn:hover{background:color-mix(in srgb, var(--header-text) 12%, transparent);}
+  .drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.3);z-index:50;display:none;}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:min(420px,100vw);background:var(--card-bg);color:var(--ink);border-left:1px solid var(--paper-line);z-index:51;transform:translateX(100%);transition:transform 0.2s ease;overflow-y:auto;padding:1.5rem;box-shadow:-4px 0 18px rgba(0,0,0,0.12);}
+  .drawer.open{transform:translateX(0);}
+  .drawer-overlay.open{display:block;}
+  .drawer h2{font-family:'Fraunces',serif;font-weight:600;font-size:1.3rem;margin:0;color:var(--ledger-green-dark);}
+  .drawer h3{font-family:'Fraunces',serif;font-weight:500;font-size:1.05rem;margin:1.6rem 0 0.6rem;color:var(--ledger-green-dark);}
+  .drawer-head{display:flex;justify-content:space-between;align-items:center;}
+  .preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;}
+  .preset-btn{display:flex;align-items:center;gap:0.5rem;padding:0.55rem 0.7rem;border:1px solid var(--paper-line);border-radius:6px;background:transparent;color:var(--ink);cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-size:0.88rem;text-align:left;}
+  .preset-btn:hover{border-color:var(--gold);}
+  .preset-dots{display:flex;gap:2px;}
+  .preset-dots span{width:12px;height:12px;border-radius:50%;border:1px solid rgba(0,0,0,0.15);}
+  .color-list{display:grid;grid-template-columns:1fr auto;gap:0.45rem 0.8rem;align-items:center;font-size:0.88rem;}
+  .color-list input[type=color]{width:38px;height:26px;padding:0;border:1px solid var(--paper-line);border-radius:4px;background:none;cursor:pointer;}
+  .setting-note{font-size:0.8rem;color:var(--muted);margin-top:0.4rem;}
+  .trend-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:14px;border:1px solid var(--paper-line);background:transparent;color:var(--ink);cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-size:0.8rem;user-select:none;}
+  .trend-chip .dot{width:10px;height:10px;border-radius:50%;}
+  .trend-chip.off{opacity:0.4;text-decoration:line-through;}
+  .mini-btn{font-family:'IBM Plex Sans',sans-serif;font-size:0.8rem;padding:3px 10px;border-radius:6px;border:1px solid var(--gold);background:transparent;color:var(--ink);cursor:pointer;}
+  #trendInfo{font-size:0.85rem;color:var(--muted);margin:-0.4rem 0 0.8rem;min-height:1.2em;}
   *{box-sizing:border-box;}
   body{
     margin:0;
@@ -32,7 +60,7 @@
   .wrap{max-width:min(1200px, 95vw);margin:0 auto;padding:0 24px;}
   header{
     background:var(--ledger-green);
-    color:#F2EEE0;
+    color:var(--header-text);
     padding:2.5rem 24px 3rem;
     margin-bottom:-2rem;
   }
@@ -44,7 +72,7 @@
     margin:0;
     letter-spacing:0.5px;
   }
-  header p{margin:0.3rem 0 0;color:#C9D6C9;font-size:0.95rem;}
+  header p{margin:0.3rem 0 0;color:var(--header-text);opacity:0.75;font-size:0.95rem;}
   .stamp{
     font-family:'Fraunces', serif;
     font-weight:600;
@@ -76,15 +104,15 @@
   button.pick{
     font-family:'IBM Plex Sans',sans-serif;
     background:var(--ledger-green);
-    color:#F2EEE0;
+    color:var(--header-text);
     border:none;
     padding:0.7rem 1.3rem;
     border-radius:6px;
     font-size:0.95rem;
     cursor:pointer;
   }
-  button.pick:hover{background:var(--ledger-green-dark);}
-  .or-sep{color:#6b6152;font-size:0.85rem;}
+  button.pick:hover{filter:brightness(1.2);}
+  .or-sep{color:var(--muted);font-size:0.85rem;}
   .upload-zone{
     border:2px dashed var(--gold);
     border-radius:6px;
@@ -97,9 +125,9 @@
   }
   .upload-zone:hover, .upload-zone.dragover{background:rgba(140,106,63,0.08);}
   .upload-zone input{display:none;}
-  .upload-zone .hint{font-size:0.8rem;color:#6b6152;margin-top:0.3rem;}
+  .upload-zone .hint{font-size:0.8rem;color:var(--muted);margin-top:0.3rem;}
   .filelist{margin-top:0.8rem;font-size:0.85rem;color:var(--ink);}
-  .not-supported{font-size:0.8rem;color:#6b6152;margin-top:0.5rem;}
+  .not-supported{font-size:0.8rem;color:var(--muted);margin-top:0.5rem;}
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-top:2rem;}
   .stat{
     background:var(--card-bg);
@@ -107,7 +135,7 @@
     border-radius:4px;
     padding:1.1rem 1.2rem;
   }
-  .stat .label{font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;color:#6b6152;}
+  .stat .label{font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);}
   .stat .value{
     font-family:'IBM Plex Mono', monospace;
     font-size:1.5rem;
@@ -117,12 +145,12 @@
   .value.pos{color:var(--ledger-green-dark);}
   .value.neg{color:var(--stamp-red);}
   canvas{max-width:100%;}
-  .empty-msg{color:#6b6152;font-style:italic;font-size:0.95rem;}
+  .empty-msg{color:var(--muted);font-style:italic;font-size:0.95rem;}
   table{width:100%;border-collapse:collapse;font-family:'IBM Plex Mono', monospace;font-size:0.85rem;margin-top:0.5rem;}
   th,td{text-align:right;padding:0.4rem 0.6rem;border-bottom:1px solid var(--paper-line);}
   th:first-child,td:first-child{text-align:left;}
-  th{font-family:'IBM Plex Sans',sans-serif;font-weight:500;color:#6b6152;font-size:0.75rem;text-transform:uppercase;}
-  .legend{display:flex;gap:1.2rem;margin-bottom:0.8rem;font-size:0.82rem;color:#6b6152;}
+  th{font-family:'IBM Plex Sans',sans-serif;font-weight:500;color:var(--muted);font-size:0.75rem;text-transform:uppercase;}
+  .legend{display:flex;gap:1.2rem;margin-bottom:0.8rem;font-size:0.82rem;color:var(--muted);}
   .legend span{display:flex;align-items:center;gap:6px;}
   .swatch{width:11px;height:11px;border-radius:2px;display:inline-block;}
   select{
@@ -134,7 +162,7 @@
     color:var(--ink);
     font-size:0.9rem;
   }
-  .filter-row{display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem;font-size:0.85rem;color:#6b6152;}
+  .filter-row{display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem;font-size:0.85rem;color:var(--muted);}
   .tx-table-wrap{max-height:480px;overflow-y:auto;}
   .tx-table{font-size:0.82rem;table-layout:fixed;width:100%;}
   .tx-table td, .tx-table th{white-space:normal;overflow-wrap:break-word;word-break:break-word;}
@@ -150,15 +178,15 @@
     cursor:pointer;
   }
   .save-btn:disabled{opacity:0.4;cursor:not-allowed;}
-  .save-status{font-size:0.82rem;color:#6b6152;}
+  .save-status{font-size:0.82rem;color:var(--muted);}
   .pie-wrap{position:relative;height:320px;max-width:420px;margin:0 auto;}
   .card h3{font-family:'Fraunces', serif;font-weight:500;font-size:1.05rem;margin:1.4rem 0 0.4rem;color:var(--ledger-green-dark);}
-  .card-hint{font-size:0.85rem;color:#6b6152;margin:-0.5rem 0 1rem;max-width:70ch;}
+  .card-hint{font-size:0.85rem;color:var(--muted);margin:-0.5rem 0 1rem;max-width:70ch;}
   .filter-card{padding:1rem 1.5rem;}
   .filter-card .filter-row{margin-bottom:0;gap:1.4rem;}
   .filter-group{display:flex;align-items:center;gap:0.5rem;}
   input[type=date]{font-family:'IBM Plex Sans',sans-serif;padding:0.35rem 0.5rem;border-radius:4px;border:1px solid var(--paper-line);background:var(--card-bg);color:var(--ink);}
-  .recurring-sum{display:flex;gap:2rem;flex-wrap:wrap;font-size:0.9rem;color:#6b6152;margin-bottom:0.5rem;}
+  .recurring-sum{display:flex;gap:2rem;flex-wrap:wrap;font-size:0.9rem;color:var(--muted);margin-bottom:0.5rem;}
   .recurring-sum strong{font-family:'IBM Plex Mono',monospace;font-weight:500;color:var(--ink);font-size:1.1rem;display:block;}
   .rec-name{background:none;border:none;padding:0;font:inherit;color:var(--ledger-green-dark);text-decoration:underline dotted;cursor:pointer;text-align:left;}
   .rec-ended td{opacity:0.5;}
@@ -166,12 +194,12 @@
   .rule-row{display:grid;grid-template-columns:150px 1fr;gap:0.8rem;padding:0.6rem 0;border-bottom:1px solid var(--paper-line);align-items:start;}
   .rule-row .rule-label{font-weight:500;padding-top:0.25rem;display:flex;align-items:center;gap:6px;}
   .chips{display:flex;flex-wrap:wrap;gap:0.35rem;align-items:center;}
-  .chip{display:inline-flex;align-items:center;gap:2px;background:rgba(41,70,59,0.08);border:1px solid var(--paper-line);border-radius:12px;padding:1px 4px 1px 9px;font-family:'IBM Plex Mono',monospace;font-size:0.78rem;}
-  .chip button{background:none;border:none;cursor:pointer;color:#6b6152;font-size:0.95rem;line-height:1;padding:0 4px;}
+  .chip{display:inline-flex;align-items:center;gap:2px;background:color-mix(in srgb, var(--ledger-green) 10%, transparent);border:1px solid var(--paper-line);border-radius:12px;padding:1px 4px 1px 9px;font-family:'IBM Plex Mono',monospace;font-size:0.78rem;}
+  .chip button{background:none;border:none;cursor:pointer;color:var(--muted);font-size:0.95rem;line-height:1;padding:0 4px;}
   .chip button:hover{color:var(--stamp-red);}
   .chip-add{font-family:'IBM Plex Mono',monospace;font-size:0.78rem;padding:2px 8px;border-radius:12px;border:1px dashed var(--gold);background:transparent;color:var(--ink);width:150px;}
   .learned-wrap{max-height:340px;overflow-y:auto;}
-  .icon-btn{background:none;border:1px solid var(--paper-line);border-radius:4px;cursor:pointer;color:#6b6152;padding:2px 8px;}
+  .icon-btn{background:none;border:1px solid var(--paper-line);border-radius:4px;cursor:pointer;color:var(--muted);padding:2px 8px;}
   .icon-btn:hover{color:var(--stamp-red);border-color:var(--stamp-red);}
   .ghost-btn{background:transparent;color:var(--gold);border:1px solid var(--gold);}
   .cat-color{width:22px;height:22px;padding:0;border:1px solid var(--paper-line);border-radius:4px;background:none;cursor:pointer;}
@@ -188,9 +216,37 @@
       <h1>Kontobuch</h1>
       <p>Zwei Konten, ein Überblick</p>
     </div>
-    <div class="stamp" id="stampBalance">Saldo: —</div>
+    <div class="header-right">
+      <div class="stamp" id="stampBalance">Saldo: —</div>
+      <button class="gear-btn" id="openSettingsBtn" title="Einstellungen">⚙ Einstellungen</button>
+    </div>
   </div>
 </header>
+
+<div class="drawer-overlay" id="settingsOverlay"></div>
+<aside class="drawer" id="settingsDrawer" aria-label="Einstellungen">
+  <div class="drawer-head">
+    <h2>Einstellungen</h2>
+    <button class="icon-btn" id="closeSettingsBtn" title="Schließen">×</button>
+  </div>
+  <p class="setting-note">Änderungen wirken sofort und werden in diesem Browser gemerkt. Mit „Speichern“ in der App landen sie zusätzlich als einstellungen.json im Ordner.</p>
+
+  <h3>Farbschema</h3>
+  <div class="preset-grid" id="presetGrid"></div>
+
+  <h3>Eigene Farben</h3>
+  <div class="color-list" id="themeColorList"></div>
+  <label style="display:flex;align-items:center;gap:6px;margin-top:0.8rem;font-size:0.88rem;">
+    <input type="checkbox" id="linesToggle" checked> Linien im Hintergrund (Kontobuch-Papier)
+  </label>
+
+  <h3>Farben der Kategorien</h3>
+  <div class="color-list" id="categoryColorList"></div>
+
+  <div class="save-row" style="margin-top:1.6rem;">
+    <button class="save-btn ghost-btn" id="resetSettingsBtn">Alles auf Standard</button>
+  </div>
+</aside>
 
 <div class="wrap">
 
@@ -268,8 +324,8 @@
     <div id="monthlyEmpty" class="empty-msg">Noch keine Daten.</div>
     <div id="monthlyContent" style="display:none;">
       <div class="legend">
-        <span><span class="swatch" style="background:#3B6D11"></span>Einnahmen</span>
-        <span><span class="swatch" style="background:#A13D2C"></span>Ausgaben</span>
+        <span><span class="swatch" style="background:var(--income)"></span>Einnahmen</span>
+        <span><span class="swatch" style="background:var(--stamp-red)"></span>Ausgaben</span>
       </div>
       <div style="position:relative;height:280px;">
         <canvas id="monthlyChart" role="img" aria-label="Balkendiagramm mit Einnahmen und Ausgaben je Monat"></canvas>
@@ -287,6 +343,15 @@
 
   <div class="card">
     <h2>Ausgaben nach Label pro Monat</h2>
+    <div id="trendControls" style="display:none;">
+      <div class="filter-row" style="flex-wrap:wrap;gap:0.4rem;">
+        <button class="mini-btn" id="trendAllBtn">Alle zeigen</button>
+        <button class="mini-btn" id="trendNoneBtn">Alle ausblenden</button>
+        <span style="margin-left:0.4rem;">Klick blendet ein/aus, Doppelklick zeigt nur dieses Label</span>
+      </div>
+      <div class="filter-row" style="flex-wrap:wrap;gap:0.4rem;" id="trendChips"></div>
+      <div id="trendInfo"></div>
+    </div>
     <div id="labelTrendEmpty" class="empty-msg">Noch keine Daten.</div>
     <div style="position:relative;height:340px;display:none;" id="labelTrendWrap">
       <canvas id="labelTrendChart" role="img" aria-label="Gestapeltes Balkendiagramm der Ausgaben je Label und Monat"></canvas>
@@ -419,6 +484,149 @@ let LABELS = DEFAULT_LABELS.slice();
 // Eigene Kategorien: Name → Farbe (gespeichert in kategorien.csv)
 let customCategories = {};
 const CUSTOM_PALETTE = ['#0f8b8d', '#c2185b', '#7cb342', '#5e35b1', '#f4511e', '#00897b', '#6d4c41', '#3949ab', '#d4a017', '#8e24aa'];
+
+// ---------- Einstellungen (Farben, Darstellung) ----------
+const THEME_VARS = [
+  ['--ledger-green', 'Kopfzeile & Buttons'],
+  ['--header-text', 'Text in der Kopfzeile'],
+  ['--ledger-green-dark', 'Überschriften & Plus-Beträge'],
+  ['--paper', 'Hintergrund'],
+  ['--paper-line', 'Linien & Rahmen'],
+  ['--card-bg', 'Karten'],
+  ['--ink', 'Text'],
+  ['--muted', 'Nebentext'],
+  ['--gold', 'Akzent (Speichern, Upload)'],
+  ['--income', 'Einnahmen (Diagramme)'],
+  ['--stamp-red', 'Ausgaben & Minus-Beträge'],
+  ['--grid', 'Diagramm-Raster']
+];
+
+const THEME_PRESETS = {
+  'Kontobuch': {
+    '--ledger-green': '#29463B', '--header-text': '#F2EEE0', '--ledger-green-dark': '#1B2F27',
+    '--paper': '#EDE7D9', '--paper-line': '#CFC6AC', '--card-bg': '#F7F3E8', '--ink': '#2E3A46',
+    '--muted': '#6b6152', '--gold': '#8C6A3F', '--income': '#3B6D11', '--stamp-red': '#A13D2C', '--grid': '#DDD5C0'
+  },
+  'Nacht': {
+    '--ledger-green': '#1F3A30', '--header-text': '#EEF3EA', '--ledger-green-dark': '#A8D5BD',
+    '--paper': '#171D1B', '--paper-line': '#2E3834', '--card-bg': '#212825', '--ink': '#E6E1D3',
+    '--muted': '#A39C8D', '--gold': '#C9A46A', '--income': '#7CC04A', '--stamp-red': '#E06B55', '--grid': '#34403B'
+  },
+  'Ozean': {
+    '--ledger-green': '#1F4E6B', '--header-text': '#EEF5F9', '--ledger-green-dark': '#163A50',
+    '--paper': '#E6EEF2', '--paper-line': '#C3D3DC', '--card-bg': '#F5F9FB', '--ink': '#22313B',
+    '--muted': '#5B6B75', '--gold': '#3E7CA6', '--income': '#2E7D4F', '--stamp-red': '#B5452F', '--grid': '#D3DFE6'
+  },
+  'Schlicht': {
+    '--ledger-green': '#333333', '--header-text': '#F5F5F5', '--ledger-green-dark': '#111111',
+    '--paper': '#F2F2F0', '--paper-line': '#DDDDDA', '--card-bg': '#FFFFFF', '--ink': '#222222',
+    '--muted': '#6E6E6E', '--gold': '#555555', '--income': '#2E7D32', '--stamp-red': '#C0392B', '--grid': '#E4E4E4'
+  }
+};
+
+function defaultSettings() {
+  return { theme: Object.assign({}, THEME_PRESETS['Kontobuch']), lines: true, categoryColors: {} };
+}
+
+function mergeSettings(loaded) {
+  const base = defaultSettings();
+  if (!loaded || typeof loaded !== 'object') return base;
+  if (loaded.theme) THEME_VARS.forEach(([v]) => { if (/^#[0-9a-f]{6}$/i.test(loaded.theme[v] || '')) base.theme[v] = loaded.theme[v]; });
+  if (typeof loaded.lines === 'boolean') base.lines = loaded.lines;
+  if (loaded.categoryColors) Object.keys(loaded.categoryColors).forEach(l => {
+    if (/^#[0-9a-f]{6}$/i.test(loaded.categoryColors[l])) base.categoryColors[l] = loaded.categoryColors[l];
+  });
+  return base;
+}
+
+let settings = defaultSettings();
+try {
+  const stored = localStorage.getItem('kontobuch-einstellungen');
+  if (stored) settings = mergeSettings(JSON.parse(stored));
+} catch (err) {
+  // localStorage nicht verfügbar - Standard verwenden
+}
+
+function saveSettingsLocal() {
+  try { localStorage.setItem('kontobuch-einstellungen', JSON.stringify(settings)); } catch (err) { /* egal */ }
+}
+
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function withAlpha(hex, a) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '');
+  if (!m) return hex;
+  return 'rgba(' + parseInt(m[1], 16) + ',' + parseInt(m[2], 16) + ',' + parseInt(m[3], 16) + ',' + a + ')';
+}
+
+function applySettings() {
+  THEME_VARS.forEach(([v]) => document.documentElement.style.setProperty(v, settings.theme[v]));
+  document.body.classList.toggle('no-lines', !settings.lines);
+}
+
+// Nach Farbänderungen: Diagramme neu zeichnen
+function settingsChanged(alsoFolder) {
+  saveSettingsLocal();
+  applySettings();
+  if (alsoFolder) markDirty();
+  if (transactions.length > 0) render();
+  else { renderRulesEditor(); }
+}
+
+function renderSettingsPanel() {
+  document.getElementById('presetGrid').innerHTML = Object.keys(THEME_PRESETS).map(name => {
+    const t = THEME_PRESETS[name];
+    return '<button class="preset-btn" data-preset="' + name + '"><span class="preset-dots">' +
+      ['--ledger-green', '--paper', '--gold', '--stamp-red'].map(v => '<span style="background:' + t[v] + '"></span>').join('') +
+      '</span>' + name + '</button>';
+  }).join('');
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      settings.theme = Object.assign({}, THEME_PRESETS[btn.getAttribute('data-preset')]);
+      settingsChanged(true);
+      renderSettingsPanel();
+    });
+  });
+
+  document.getElementById('themeColorList').innerHTML = THEME_VARS.map(([v, name]) =>
+    '<span>' + name + '</span><input type="color" data-var="' + v + '" value="' + settings.theme[v] + '">'
+  ).join('');
+  document.querySelectorAll('#themeColorList input').forEach(inp => {
+    // Während des Ziehens nur die Seite einfärben, beim Loslassen auch Diagramme
+    inp.addEventListener('input', () => {
+      settings.theme[inp.getAttribute('data-var')] = inp.value;
+      applySettings();
+    });
+    inp.addEventListener('change', () => settingsChanged(true));
+  });
+
+  document.getElementById('linesToggle').checked = settings.lines;
+
+  document.getElementById('categoryColorList').innerHTML = LABELS.map(l =>
+    '<span>' + escapeHtml(l) + (customCategories[l] !== undefined ? ' <span class="setting-note">(eigene)</span>' : '') + '</span>' +
+    '<input type="color" data-cat="' + encodeURIComponent(l) + '" value="' + labelColor(l) + '">'
+  ).join('');
+  document.querySelectorAll('#categoryColorList input').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const l = decodeURIComponent(inp.getAttribute('data-cat'));
+      if (customCategories[l] !== undefined) customCategories[l] = inp.value;
+      else settings.categoryColors[l] = inp.value;
+      settingsChanged(true);
+    });
+  });
+}
+
+function openSettings() {
+  renderSettingsPanel();
+  document.getElementById('settingsDrawer').classList.add('open');
+  document.getElementById('settingsOverlay').classList.add('open');
+}
+function closeSettings() {
+  document.getElementById('settingsDrawer').classList.remove('open');
+  document.getElementById('settingsOverlay').classList.remove('open');
+}
 
 function addCategory(name, color) {
   if (LABELS.some(l => l.toLowerCase() === name.toLowerCase())) return false;
@@ -576,6 +784,14 @@ async function handleFiles(fileArray) {
 
 async function loadLabelsFromDir(dirHandle) {
   try {
+    const handle = await dirHandle.getFileHandle('einstellungen.json');
+    settings = mergeSettings(JSON.parse(await (await handle.getFile()).text()));
+    saveSettingsLocal();
+    applySettings();
+  } catch (err) {
+    // keine einstellungen.json - Browser-Einstellungen behalten
+  }
+  try {
     const handle = await dirHandle.getFileHandle('kategorien.csv');
     const text = await (await handle.getFile()).text();
     const parsed = Papa.parse(text, { header: true, delimiter: ';', skipEmptyLines: true });
@@ -683,20 +899,25 @@ async function saveLabels() {
     await catWritable.write(catLines.join('\n'));
     await catWritable.close();
 
+    const setHandle = await rootDirHandle.getFileHandle('einstellungen.json', { create: true });
+    const setWritable = await setHandle.createWritable();
+    await setWritable.write(JSON.stringify(settings, null, 2));
+    await setWritable.close();
+
     const kwHandle = await rootDirHandle.getFileHandle('stichwoerter.csv', { create: true });
     const kwWritable = await kwHandle.createWritable();
     await kwWritable.write(kwLines.join('\n'));
     await kwWritable.close();
 
     labelsDirty = false;
-    setSaveStatus('Gespeichert (Labels, Regeln, Stichwörter und Kategorien)', true);
+    setSaveStatus('Gespeichert (Labels, Regeln, Stichwörter, Kategorien und Einstellungen)', true);
   } catch (err) {
     setSaveStatus('Speichern fehlgeschlagen: ' + err.message, false);
   }
 }
 
 // Eigene Dateien der App, keine Kontoauszüge
-const APP_FILES = ['labels.csv', 'regeln.csv', 'stichwoerter.csv', 'kategorien.csv'];
+const APP_FILES = ['labels.csv', 'regeln.csv', 'stichwoerter.csv', 'kategorien.csv', 'einstellungen.json'];
 
 // .csv, .txt oder ganz ohne Endung (z. B. wenn beim Download die Endung verloren ging)
 function isCsvCandidate(name) {
@@ -725,6 +946,8 @@ async function scanDirectory(dirHandle, personLabel, isRoot = true) {
       transactions.push(...result.rows);
       if (result.rows.length > 0) knownPersons.add(personLabel);
       addFileToList(fileListText(prefix + name, result));
+    } else if (handle.kind === 'file' && isRoot && APP_FILES.includes(name.toLowerCase())) {
+      continue;
     } else if (handle.kind === 'file') {
       // Andere Dateien sichtbar machen, damit man sieht, warum etwas fehlt
       if (!name.startsWith('.') && name.toLowerCase() !== 'desktop.ini') {
@@ -889,7 +1112,7 @@ function renderPieChart(list) {
         renderCombinedOverview();
       },
       plugins: {
-        legend: { position: 'bottom', labels: { color: '#6b6152', boxWidth: 11, font: { size: 11 } } }
+        legend: { position: 'bottom', labels: { color: cssVar('--muted'), boxWidth: 11, font: { size: 11 } } }
       }
     }
   });
@@ -1082,7 +1305,7 @@ const LABEL_COLORS = {
   'Reisen': '#1baf7a', 'Versicherungen': '#8C6A3F', 'Transport': '#eda100', 'Gehalt/Einkommen': '#008300',
   'Sparen': '#29463B', 'Unkategorisiert': '#b3aa98', 'Gesundheit': '#e34948', 'Bargeld': '#6b6152'
 };
-function labelColor(l) { return LABEL_COLORS[l] || customCategories[l] || '#A13D2C'; }
+function labelColor(l) { return customCategories[l] || settings.categoryColors[l] || LABEL_COLORS[l] || '#A13D2C'; }
 
 function markDirty() {
   labelsDirty = true;
@@ -1164,12 +1387,50 @@ function renderRangeInfo(active) {
 
 // ---------- Ausgaben nach Label pro Monat ----------
 let labelTrendChart = null;
+let trendHidden = new Set();
+let trendState = { labels: [], byLabel: {}, months: [] };
+
+function updateTrendVisibility() {
+  if (!labelTrendChart) return;
+  labelTrendChart.data.datasets.forEach(d => { d.hidden = trendHidden.has(d.label); });
+  labelTrendChart.update();
+  renderTrendChips();
+}
+
+function renderTrendChips() {
+  const { labels, byLabel, months } = trendState;
+  const wrap = document.getElementById('trendChips');
+  wrap.innerHTML = labels.map(l =>
+    '<button class="trend-chip' + (trendHidden.has(l) ? ' off' : '') + '" data-label="' + encodeURIComponent(l) + '">' +
+    '<span class="dot" style="background:' + labelColor(l) + '"></span>' + escapeHtml(l) + '</button>'
+  ).join('');
+  wrap.querySelectorAll('.trend-chip').forEach(btn => {
+    const l = decodeURIComponent(btn.getAttribute('data-label'));
+    btn.addEventListener('click', () => {
+      if (trendHidden.has(l)) trendHidden.delete(l); else trendHidden.add(l);
+      updateTrendVisibility();
+    });
+    btn.addEventListener('dblclick', () => {
+      trendHidden = new Set(labels.filter(x => x !== l));
+      updateTrendVisibility();
+    });
+  });
+
+  const visible = labels.filter(l => !trendHidden.has(l));
+  const info = document.getElementById('trendInfo');
+  if (visible.length === 0) { info.textContent = 'Kein Label ausgewählt.'; return; }
+  const total = visible.reduce((s, l) => s + Object.values(byLabel[l]).reduce((a, b) => a + b, 0), 0);
+  const name = visible.length === 1 ? visible[0] : visible.length + ' Labels';
+  info.textContent = 'Auswahl: ' + name + ' · gesamt ' + formatEUR(total) +
+    ' · Ø ' + formatEUR(total / Math.max(months.length, 1)) + ' pro Monat (' + months.length + ' Monate)';
+}
 
 function renderLabelTrend(list) {
   const expenses = list.filter(t => t.betrag < 0);
   if (expenses.length === 0) {
     document.getElementById('labelTrendEmpty').style.display = 'block';
     document.getElementById('labelTrendWrap').style.display = 'none';
+    document.getElementById('trendControls').style.display = 'none';
     if (labelTrendChart) { labelTrendChart.destroy(); labelTrendChart = null; }
     return;
   }
@@ -1189,6 +1450,8 @@ function renderLabelTrend(list) {
   const months = Array.from(monthSet).sort();
   // Größte Labels unten im Stapel
   const labels = Object.keys(byLabel).sort((a, b) => totals[b] - totals[a]);
+  trendState = { labels: labels, byLabel: byLabel, months: months };
+  document.getElementById('trendControls').style.display = 'block';
 
   if (labelTrendChart) labelTrendChart.destroy();
   labelTrendChart = new Chart(document.getElementById('labelTrendChart'), {
@@ -1199,7 +1462,8 @@ function renderLabelTrend(list) {
         label: l,
         data: months.map(mk => Math.round((byLabel[l][mk] || 0) * 100) / 100),
         backgroundColor: labelColor(l),
-        stack: 'ausgaben'
+        stack: 'ausgaben',
+        hidden: trendHidden.has(l)
       }))
     },
     options: {
@@ -1207,7 +1471,7 @@ function renderLabelTrend(list) {
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { position: 'bottom', labels: { color: '#6b6152', boxWidth: 11, font: { size: 11 } } },
+        legend: { display: false },
         tooltip: {
           filter: item => item.raw > 0,
           callbacks: {
@@ -1217,11 +1481,12 @@ function renderLabelTrend(list) {
         }
       },
       scales: {
-        x: { stacked: true, grid: { display: false }, ticks: { color: '#6b6152' } },
-        y: { stacked: true, ticks: { color: '#6b6152', callback: v => v.toLocaleString('de-DE') + ' €' }, grid: { color: '#DDD5C0' } }
+        x: { stacked: true, grid: { display: false }, ticks: { color: cssVar('--muted') } },
+        y: { stacked: true, ticks: { color: cssVar('--muted'), callback: v => v.toLocaleString('de-DE') + ' €' }, grid: { color: cssVar('--grid') } }
       }
     }
   });
+  renderTrendChips();
 }
 
 // ---------- Regelmäßige Zahlungen ----------
@@ -1614,8 +1879,9 @@ function render() {
       datasets: [{
         label: 'Kontostand (kumuliert)',
         data: timelineData,
-        borderColor: '#29463B',
-        backgroundColor: 'rgba(41,70,59,0.08)',
+        // Überschriften-Farbe: hebt sich in hellen und dunklen Schemas vom Hintergrund ab
+        borderColor: cssVar('--ledger-green-dark'),
+        backgroundColor: withAlpha(cssVar('--ledger-green-dark'), 0.1),
         fill: true,
         borderWidth: 2,
         pointRadius: 0,
@@ -1627,8 +1893,8 @@ function render() {
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { ticks: { maxTicksLimit: 8, color: '#6b6152' }, grid: { display: false } },
-        y: { ticks: { color: '#6b6152', callback: v => v.toLocaleString('de-DE') + ' €' }, grid: { color: '#DDD5C0' } }
+        x: { ticks: { maxTicksLimit: 8, color: cssVar('--muted') }, grid: { display: false } },
+        y: { ticks: { color: cssVar('--muted'), callback: v => v.toLocaleString('de-DE') + ' €' }, grid: { color: cssVar('--grid') } }
       }
     }
   });
@@ -1642,13 +1908,13 @@ function render() {
         {
           label: 'Einnahmen',
           data: monthKeys.map(k => Math.round(byMonth[k].income * 100) / 100),
-          backgroundColor: monthKeys.map(k => k === thisMonthKey ? '#639922' : '#3B6D11'),
+          backgroundColor: monthKeys.map(k => k === thisMonthKey ? cssVar('--income') : withAlpha(cssVar('--income'), 0.75)),
           borderRadius: 4
         },
         {
           label: 'Ausgaben',
           data: monthKeys.map(k => Math.round(Math.abs(byMonth[k].expense) * 100) / 100),
-          backgroundColor: monthKeys.map(k => k === thisMonthKey ? '#E24B4A' : '#A13D2C'),
+          backgroundColor: monthKeys.map(k => k === thisMonthKey ? cssVar('--stamp-red') : withAlpha(cssVar('--stamp-red'), 0.75)),
           borderRadius: 4
         }
       ]
@@ -1658,8 +1924,8 @@ function render() {
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { grid: { display: false }, ticks: { color: '#6b6152' } },
-        y: { ticks: { color: '#6b6152', callback: v => v.toLocaleString('de-DE') + ' €' }, grid: { color: '#DDD5C0' } }
+        x: { grid: { display: false }, ticks: { color: cssVar('--muted') } },
+        y: { ticks: { color: cssVar('--muted'), callback: v => v.toLocaleString('de-DE') + ' €' }, grid: { color: cssVar('--grid') } }
       }
     }
   });
@@ -1761,6 +2027,30 @@ document.getElementById('resetKeywordsBtn').addEventListener('click', () => {
   refreshLabelViews();
 });
 renderRulesEditor();
+
+document.getElementById('openSettingsBtn').addEventListener('click', openSettings);
+document.getElementById('closeSettingsBtn').addEventListener('click', closeSettings);
+document.getElementById('settingsOverlay').addEventListener('click', closeSettings);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSettings(); });
+document.getElementById('linesToggle').addEventListener('change', (e) => {
+  settings.lines = e.target.checked;
+  settingsChanged(true);
+});
+document.getElementById('resetSettingsBtn').addEventListener('click', () => {
+  if (!confirm('Farben und Darstellung auf Standard zurücksetzen? Farben eigener Kategorien bleiben erhalten.')) return;
+  settings = defaultSettings();
+  settingsChanged(true);
+  renderSettingsPanel();
+});
+document.getElementById('trendAllBtn').addEventListener('click', () => {
+  trendHidden.clear();
+  updateTrendVisibility();
+});
+document.getElementById('trendNoneBtn').addEventListener('click', () => {
+  trendState.labels.forEach(l => trendHidden.add(l));
+  updateTrendVisibility();
+});
+applySettings();
 
 document.getElementById('saveLabelsBtn').addEventListener('click', saveLabels);
 </script>
