@@ -406,7 +406,7 @@
     <div class="filter-row">
       <label style="display:flex;align-items:center;gap:6px;">
         <input type="checkbox" id="onlySuggestedToggle">
-        Nur unbestätigte Vorschläge anzeigen
+        Nur unbestätigte Vorschläge anzeigen (über Stichwörter)
       </label>
     </div>
     <div class="filter-row" style="flex-wrap:wrap;">
@@ -424,6 +424,10 @@
       <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="zweck" checked>Verwendungszweck</label>
       <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="betrag" checked>Betrag</label>
       <label style="display:flex;align-items:center;gap:4px;"><input type="checkbox" class="colToggle" data-col="label" checked>Label</label>
+    </div>
+    <div class="filter-row">
+      <button class="save-btn" id="bulkConfirmBtn" disabled style="padding:0.45rem 0.9rem;font-size:0.85rem;">Keine offenen Vorschläge in der Ansicht</button>
+      <span style="font-size:0.8rem;">Gilt für alle Zeilen, die gerade durch Suche und Filter angezeigt werden.</span>
     </div>
     <div id="combinedEmpty" class="empty-msg">Noch keine Daten.</div>
     <div class="tx-table-wrap" id="combinedWrap" style="display:none;">
@@ -1058,16 +1062,55 @@ function normalizeEmpfaenger(s) {
   return (s || '').trim().toLowerCase();
 }
 
-function autoSuggestLabel(t) {
+// Zahlungsdienstleister kassieren für viele verschiedene Händler unter demselben Namen
+// (z. B. "Adyen N.V." für TK Maxx, Restaurants, …) – für sie keine Empfänger-Regel lernen
+const PAYMENT_PROCESSORS = ['adyen', 'payone', 'stripe', 'sumup', 'klarna', 'worldline', 'concardis', 'nexi', 'computop', 'unzer', 'mollie', 'paypal', 'zettle', 'viva wallet', 'sofort'];
+
+function canLearn(emp) {
+  if (!emp || emp === '-' || emp === '–') return false;
+  return !PAYMENT_PROCESSORS.some(p => emp.includes(p));
+}
+
+// Beim Bestätigen von Stichwort-Vorschlägen nur lernen, wenn das Stichwort im Empfängernamen steht –
+// steht es nur im Verwendungszweck, passt es evtl. nicht zu allen Buchungen an diesen Empfänger
+function keywordInName(t, label) {
+  const name = (t.empfaenger || '').toLowerCase();
+  return (AUTO_LABEL_RULES[label] || []).some(kw => name.includes(kw.trim()));
+}
+
+// Label über einen gelernten (= einmal bestätigten) Empfänger
+function learnedLabel(t) {
   const normEmp = normalizeEmpfaenger(t.empfaenger);
-  if (normEmp && normEmp !== '-' && normEmp !== '–' && learnedRules[normEmp]) {
-    return learnedRules[normEmp];
-  }
+  if (normEmp && normEmp !== '-' && normEmp !== '–' && learnedRules[normEmp]) return learnedRules[normEmp];
+  return null;
+}
+
+// Label über ein Stichwort – das ist ein echter Vorschlag
+function keywordLabel(t) {
   const haystack = ((t.empfaenger || '') + ' ' + (t.verwendungszweck || '')).toLowerCase();
   for (const label of Object.keys(AUTO_LABEL_RULES)) {
     if (AUTO_LABEL_RULES[label].some(kw => haystack.includes(kw))) return label;
   }
   return null;
+}
+
+function autoSuggestLabel(t) {
+  return learnedLabel(t) || keywordLabel(t);
+}
+
+// Status einer Buchung:
+//  manual    = bei dieser Buchung selbst gewählt/bestätigt
+//  learned   = fest über einen gelernten Empfänger (zählt als bestätigt)
+//  suggested = nur Vorschlag über ein Stichwort
+//  none      = kein Label
+function labelInfo(t) {
+  const manual = labelMap[txKey(t)];
+  if (manual) return { label: manual, status: 'manual' };
+  const learned = learnedLabel(t);
+  if (learned) return { label: learned, status: 'learned' };
+  const kw = keywordLabel(t);
+  if (kw) return { label: kw, status: 'suggested' };
+  return { label: 'Unkategorisiert', status: 'none' };
 }
 
 // Gilt überall gleich: manuell gesetztes Label > Vorschlag > Unkategorisiert
@@ -1152,6 +1195,39 @@ function buildLabelFilterUI() {
   });
 }
 
+let lastCombinedList = [];
+
+function updateBulkConfirmButton() {
+  const n = lastCombinedList.filter(t => !t.internal && labelInfo(t).status === 'suggested').length;
+  const btn = document.getElementById('bulkConfirmBtn');
+  btn.disabled = n === 0;
+  btn.textContent = n === 0 ? 'Keine offenen Vorschläge in der Ansicht' : 'Alle ' + n + ' angezeigten Vorschläge bestätigen';
+}
+
+function bulkConfirm() {
+  const items = lastCombinedList.filter(t => !t.internal && labelInfo(t).status === 'suggested');
+  if (items.length === 0) return;
+  if (!confirm(items.length + ' Vorschläge als festes Label übernehmen?')) return;
+  // Empfänger nur lernen, wenn alle seine Buchungen in dieser Auswahl dasselbe Label bekommen
+  const labelsPerEmp = {};
+  items.forEach(t => {
+    const label = keywordLabel(t);
+    labelMap[txKey(t)] = label;
+    const emp = normalizeEmpfaenger(t.empfaenger);
+    if (!canLearn(emp)) return;
+    const set = (labelsPerEmp[emp] = labelsPerEmp[emp] || new Set());
+    // Stichwort nur im Verwendungszweck → Empfänger nicht lernen (markiert durch Sonderwert)
+    set.add(keywordInName(t, label) ? label : '__nicht_lernen__');
+  });
+  Object.keys(labelsPerEmp).forEach(emp => {
+    const only = Array.from(labelsPerEmp[emp]);
+    if (only.length === 1 && only[0] !== '__nicht_lernen__' && !learnedRules[emp]) learnedRules[emp] = only[0];
+  });
+  markDirty();
+  renderRulesEditor();
+  refreshLabelViews();
+}
+
 function renderCombinedOverview() {
   // Gleiche Personenauswahl wie oben beim Kontostandsverlauf
   const personVal = document.getElementById('personFilter').value;
@@ -1164,7 +1240,7 @@ function renderCombinedOverview() {
     list = list.filter(t => !t.internal && effectiveLabel(t) !== 'Unkategorisiert');
   }
   if (onlySuggested) {
-    list = list.filter(t => !t.internal && !labelMap[txKey(t)] && !!autoSuggestLabel(t));
+    list = list.filter(t => !t.internal && labelInfo(t).status === 'suggested');
   }
   if (selectedLabels.size > 0) {
     // gleiche Logik wie im Kuchendiagramm: Vorschläge zählen mit, interne Transfers nicht
@@ -1181,6 +1257,8 @@ function renderCombinedOverview() {
     });
   }
   list.sort((a, b) => b.datum - a.datum);
+  lastCombinedList = list;
+  updateBulkConfirmButton();
   if (list.length === 0) {
     document.getElementById('combinedEmpty').style.display = 'block';
     document.getElementById('combinedWrap').style.display = 'none';
@@ -1197,21 +1275,23 @@ function renderCombinedOverview() {
   tbody.innerHTML = '';
   list.forEach(t => {
     const key = txKey(t);
-    const manualLabel = labelMap[key];
-    const suggested = autoSuggestLabel(t);
-    const current = manualLabel || suggested || 'Unkategorisiert';
-    const isAuto = !manualLabel && !!suggested;
+    const info = labelInfo(t);
+    const current = info.label;
+    const isAuto = info.status === 'suggested';
+    const isLearned = info.status === 'learned';
     const normEmp = normalizeEmpfaenger(t.empfaenger);
     const empfAttr = (normEmp && normEmp !== '-' && normEmp !== '–') ? ' data-empf="' + encodeURIComponent(normEmp) + '"' : '';
     const selectHtml = '<select data-key="' + encodeURIComponent(key) + '"' + empfAttr +
-        (isAuto ? ' style="border-style:dashed;" title="Automatisch vorgeschlagen – zum Bestätigen einfach auswählen oder Haken klicken"' : '') +
+        (isAuto ? ' style="border-style:dashed;" title="Vorschlag über Stichwort – zum Bestätigen einfach auswählen oder Haken klicken"' : '') +
+        (isLearned ? ' title="Fest über gelernten Empfänger – gilt für alle Buchungen an diesen Empfänger"' : '') +
         '>' + LABELS.map(l => '<option value="' + escapeHtml(l) + '"' + (l === current ? ' selected' : '') + '>' + escapeHtml(l) + (isAuto && l === current ? ' (Vorschlag)' : '') + '</option>').join('') + '</select>';
     const confirmBtn = isAuto
       ? '<button class="confirmLabelBtn" data-key="' + encodeURIComponent(key) + '" data-value="' + encodeURIComponent(current) + '"' + empfAttr + ' title="Vorschlag bestätigen" style="margin-left:6px;padding:2px 8px;border-radius:4px;border:1px solid var(--ledger-green);background:rgba(41,70,59,0.08);color:var(--ledger-green-dark);cursor:pointer;">✓</button>'
       : '';
+    const learnedMark = isLearned ? '<span title="Fest über gelernten Empfänger" style="margin-left:6px;color:var(--muted);">↻</span>' : '';
     const labelCell = t.internal
       ? '🔁 Interner Transfer'
-      : selectHtml + confirmBtn;
+      : selectHtml + confirmBtn + learnedMark;
     const cellFor = {
       datum: t.datum.toLocaleDateString('de-DE'),
       quelle: t.quelle,
@@ -1237,7 +1317,7 @@ function renderCombinedOverview() {
       else delete labelMap[key];
 
       const empfAttr = e.target.getAttribute('data-empf');
-      if (empfAttr && value) {
+      if (empfAttr && value && canLearn(decodeURIComponent(empfAttr))) {
         learnedRules[decodeURIComponent(empfAttr)] = value;
       }
 
@@ -1252,7 +1332,10 @@ function renderCombinedOverview() {
       const value = decodeURIComponent(e.target.getAttribute('data-value'));
       labelMap[key] = value;
       const empfAttr = e.target.getAttribute('data-empf');
-      if (empfAttr) learnedRules[decodeURIComponent(empfAttr)] = value;
+      const tx = transactions.find(t => txKey(t) === key);
+      if (empfAttr && canLearn(decodeURIComponent(empfAttr)) && tx && keywordInName(tx, value)) {
+        learnedRules[decodeURIComponent(empfAttr)] = value;
+      }
 
       markDirty();
       refreshLabelViews();
@@ -2052,6 +2135,7 @@ document.getElementById('trendNoneBtn').addEventListener('click', () => {
 });
 applySettings();
 
+document.getElementById('bulkConfirmBtn').addEventListener('click', bulkConfirm);
 document.getElementById('saveLabelsBtn').addEventListener('click', saveLabels);
 </script>
 
